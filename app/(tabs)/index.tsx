@@ -4,7 +4,7 @@ import { Link } from 'expo-router';
 
 import { Text, View } from '@/components/Themed';
 import { SeoHead } from '@/components/SeoHead';
-import { billingPlans, proPaymentLink } from '@/lib/billing';
+import { billingPlans } from '@/lib/billing';
 import {
   formatCurrency,
   isThisMonth,
@@ -68,6 +68,10 @@ export default function HomeScreen() {
 
   const handleContactSubmit = () => {
     Linking.openURL(contactUrl);
+  };
+
+  const handleOpenPaymentLink = (paymentLink: string) => {
+    Linking.openURL(paymentLink);
   };
 
   return (
@@ -171,11 +175,15 @@ export default function HomeScreen() {
                   <Text style={styles.rowSub}>{plan.description}</Text>
                 </View>
                 <Text style={styles.status}>{plan.key === 'free' ? '体験' : 'Stripe対応'}</Text>
+                {plan.paymentLink ? (
+                  <Pressable style={styles.planButton} onPress={() => handleOpenPaymentLink(plan.paymentLink!)}>
+                    <Text style={styles.planButtonText} lightColor="#ffffff" darkColor="#ffffff">
+                      {plan.key === 'pro' ? '980円で始める' : '2,980円で始める'}
+                    </Text>
+                  </Pressable>
+                ) : null}
               </View>
             ))}
-            <Link href={proPaymentLink} target="_blank" style={styles.primaryLink}>
-              980円で始める
-            </Link>
             <Link href="/settings" style={styles.primaryLink}>
               ログイン・料金管理へ
             </Link>
@@ -451,6 +459,17 @@ const styles = StyleSheet.create({
     borderTopColor: '#eef2f7',
     gap: 8,
     paddingTop: 12,
+  },
+  planButton: {
+    alignItems: 'center',
+    borderRadius: 8,
+    backgroundColor: '#2563eb',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  planButtonText: {
+    fontSize: 14,
+    fontWeight: '800',
   },
   rowBody: {
     gap: 2,

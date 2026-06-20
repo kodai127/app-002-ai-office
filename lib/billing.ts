@@ -12,6 +12,7 @@ export type BillingPlan = {
 };
 
 export const proPaymentLink = 'https://buy.stripe.com/6oUfZi9Ce7uwdGH9e74gg00';
+export const businessPaymentLink = 'https://buy.stripe.com/aFaaEY6q22acfOP2PJ4gg01';
 
 export const billingPlans: BillingPlan[] = [
   {
@@ -34,6 +35,7 @@ export const billingPlans: BillingPlan[] = [
     features: ['Pro機能すべて', '複数顧客運用', '履歴管理強化', '優先改善対象'],
     key: 'business',
     monthlyPrice: '2,980円',
+    paymentLink: businessPaymentLink,
     title: 'Business',
   },
 ];

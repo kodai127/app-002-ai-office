@@ -378,7 +378,7 @@ export default function SettingsScreen() {
                       ? 'Freeで始める'
                       : plan.key === 'pro'
                         ? '980円で始める'
-                        : 'Stripeで申し込む'}
+                        : '2,980円で始める'}
                   </Text>
                 </Pressable>
               </View>
