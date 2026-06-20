@@ -29,16 +29,30 @@ function getPlanFromPriceId(priceId) {
   return 'free';
 }
 
+function getPlanFromAmount(amountTotal) {
+  if (amountTotal === 98000) {
+    return 'pro';
+  }
+
+  if (amountTotal === 298000) {
+    return 'business';
+  }
+
+  return 'free';
+}
+
 function isPaidStatus(status) {
   return ['active', 'trialing', 'past_due'].includes(status);
 }
 
-async function updateProfileFromSubscription(supabaseAdmin, subscription) {
+async function updateProfileFromSubscription(supabaseAdmin, subscription, fallback = {}) {
   const userId = subscription.metadata?.user_id;
   const customerId = typeof subscription.customer === 'string' ? subscription.customer : subscription.customer?.id;
   const priceId = subscription.items?.data?.[0]?.price?.id;
   const paidPlan = getPlanFromPriceId(priceId);
-  const plan = isPaidStatus(subscription.status) ? paidPlan : 'free';
+  const fallbackPlan = fallback.plan || 'free';
+  const planFromPrice = paidPlan === 'free' ? fallbackPlan : paidPlan;
+  const plan = isPaidStatus(subscription.status) ? planFromPrice : 'free';
   const now = new Date().toISOString();
 
   if (userId) {
@@ -64,6 +78,18 @@ async function updateProfileFromSubscription(supabaseAdmin, subscription) {
         updated_at: now,
       })
       .eq('stripe_customer_id', customerId);
+  }
+
+  if (fallback.email) {
+    await supabaseAdmin
+      .from('profiles')
+      .update({
+        plan,
+        stripe_customer_id: customerId ?? null,
+        subscription_status: subscription.status,
+        updated_at: now,
+      })
+      .eq('email', fallback.email);
   }
 }
 
@@ -102,10 +128,12 @@ module.exports = async function handler(request, response) {
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object;
       const subscriptionId = typeof session.subscription === 'string' ? session.subscription : session.subscription?.id;
+      const email = session.customer_details?.email || session.customer_email;
+      const plan = getPlanFromAmount(session.amount_total);
 
       if (subscriptionId) {
         const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-        await updateProfileFromSubscription(supabaseAdmin, subscription);
+        await updateProfileFromSubscription(supabaseAdmin, subscription, { email, plan });
       }
     }
 

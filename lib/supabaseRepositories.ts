@@ -103,6 +103,16 @@ function isPaidProfile(profile: BillingProfile) {
   );
 }
 
+export type UsageSummary = {
+  isConfigured: boolean;
+  isLoggedIn: boolean;
+  limit: number | null;
+  plan: BillingProfile['plan'];
+  remaining: number | null;
+  subscriptionStatus: string;
+  used: number;
+};
+
 function getCurrentMonthRange() {
   const now = new Date();
   const start = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -160,6 +170,84 @@ async function assertCanSaveBusinessRecord() {
   if (usedCount >= freeMonthlyCloudSaveLimit) {
     throw new Error('Freeプランのクラウド保存は月3回までです。Pro/Businessへアップグレードしてください。');
   }
+}
+
+export async function fetchUsageSummary(): Promise<UsageSummary> {
+  if (!isSupabaseConfigured || !supabase) {
+    return {
+      isConfigured: false,
+      isLoggedIn: false,
+      limit: freeMonthlyCloudSaveLimit,
+      plan: 'free',
+      remaining: freeMonthlyCloudSaveLimit,
+      subscriptionStatus: 'not_configured',
+      used: 0,
+    };
+  }
+
+  const user = await getCurrentUser();
+
+  if (!user) {
+    return {
+      isConfigured: true,
+      isLoggedIn: false,
+      limit: freeMonthlyCloudSaveLimit,
+      plan: 'free',
+      remaining: freeMonthlyCloudSaveLimit,
+      subscriptionStatus: 'signed_out',
+      used: 0,
+    };
+  }
+
+  const profile = await fetchOrCreateProfile();
+  const client = assertSupabase();
+  const { start, end } = getCurrentMonthRange();
+  const [estimateCountResult, invoiceCountResult] = await Promise.all([
+    client
+      .from('estimates')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .gte('issued_at', start)
+      .lt('issued_at', end),
+    client
+      .from('invoices')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .gte('issued_at', start)
+      .lt('issued_at', end),
+  ]);
+
+  if (estimateCountResult.error) {
+    throw estimateCountResult.error;
+  }
+
+  if (invoiceCountResult.error) {
+    throw invoiceCountResult.error;
+  }
+
+  const used = (estimateCountResult.count ?? 0) + (invoiceCountResult.count ?? 0);
+
+  if (isPaidProfile(profile)) {
+    return {
+      isConfigured: true,
+      isLoggedIn: true,
+      limit: null,
+      plan: profile.plan,
+      remaining: null,
+      subscriptionStatus: profile.subscriptionStatus,
+      used,
+    };
+  }
+
+  return {
+    isConfigured: true,
+    isLoggedIn: true,
+    limit: freeMonthlyCloudSaveLimit,
+    plan: 'free',
+    remaining: Math.max(freeMonthlyCloudSaveLimit - used, 0),
+    subscriptionStatus: profile.subscriptionStatus,
+    used,
+  };
 }
 
 export function mapCustomerRow(row: CustomerRow): Customer {

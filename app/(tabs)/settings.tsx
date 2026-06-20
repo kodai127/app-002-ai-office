@@ -5,6 +5,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { AuthPanel } from '@/components/AuthPanel';
 import { SeoHead } from '@/components/SeoHead';
 import { Text, View } from '@/components/Themed';
+import { UsageLimitPanel } from '@/components/UsageLimitPanel';
 import { billingPlans, openBillingLink } from '@/lib/billing';
 import {
   Customer,
@@ -200,6 +201,7 @@ export default function SettingsScreen() {
           </View>
 
           <AuthPanel />
+          <UsageLimitPanel refreshKey={billingStatus} />
 
           <View style={styles.segmented} lightColor="transparent" darkColor="transparent">
           <SegmentButton active={activeTab === 'customers'} label="顧客" onPress={() => setActiveTab('customers')} />

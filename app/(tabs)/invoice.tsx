@@ -7,6 +7,7 @@ import * as Sharing from 'expo-sharing';
 
 import { SeoHead } from '@/components/SeoHead';
 import { Text, View } from '@/components/Themed';
+import { UsageLimitPanel } from '@/components/UsageLimitPanel';
 import { formatCurrency, InvoiceRecord } from '@/lib/officeData';
 import { fetchInvoiceRecords, saveInvoiceRecord } from '@/lib/supabaseRepositories';
 
@@ -343,6 +344,7 @@ export default function InvoiceScreen() {
   const [historyStatus, setHistoryStatus] = useState('');
   const [invoiceHistory, setInvoiceHistory] = useState<InvoiceRecord[]>([]);
   const [localInvoiceHistory, setLocalInvoiceHistory] = useState<LocalInvoiceHistoryRecord[]>([]);
+  const [usageRefreshKey, setUsageRefreshKey] = useState(0);
 
   useEffect(() => {
     const storage = getBrowserStorage();
@@ -568,6 +570,7 @@ export default function InvoiceScreen() {
         savedInvoice,
         ...currentHistory.filter((invoice) => invoice.id !== savedInvoice.id),
       ]);
+      setUsageRefreshKey((currentKey) => currentKey + 1);
       setHistoryStatus('請求書履歴をDBに保存しました。');
     } catch (error) {
       try {
@@ -597,6 +600,8 @@ export default function InvoiceScreen() {
             <Text style={styles.title}>請求書作成</Text>
             <Text style={styles.description}>見積内容を引き継いで請求書を作成できます。</Text>
           </View>
+
+          <UsageLimitPanel refreshKey={usageRefreshKey} />
 
           <View style={styles.totalCard} lightColor="#111827" darkColor="#111827">
           <Text style={styles.totalLabel} lightColor="#cbd5e1" darkColor="#cbd5e1">

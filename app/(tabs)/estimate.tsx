@@ -7,6 +7,7 @@ import * as Sharing from 'expo-sharing';
 
 import { SeoHead } from '@/components/SeoHead';
 import { Text, View } from '@/components/Themed';
+import { UsageLimitPanel } from '@/components/UsageLimitPanel';
 import { saveEstimateRecord } from '@/lib/supabaseRepositories';
 
 const numberFormatter = new Intl.NumberFormat('ja-JP', {
@@ -277,6 +278,7 @@ export default function EstimateScreen() {
   const [isStorageLoaded, setIsStorageLoaded] = useState(false);
   const [exportStatus, setExportStatus] = useState('');
   const [historyStatus, setHistoryStatus] = useState('');
+  const [usageRefreshKey, setUsageRefreshKey] = useState(0);
 
   useEffect(() => {
     const storage = getBrowserStorage();
@@ -440,6 +442,7 @@ export default function EstimateScreen() {
         projectName,
         workDescription,
       });
+      setUsageRefreshKey((currentKey) => currentKey + 1);
       setHistoryStatus('見積履歴をDBに保存しました。');
     } catch (error) {
       try {
@@ -469,6 +472,8 @@ export default function EstimateScreen() {
             <Text style={styles.title}>AI見積書</Text>
             <Text style={styles.description}>入力すると見積金額がリアルタイムで更新されます。</Text>
           </View>
+
+          <UsageLimitPanel refreshKey={usageRefreshKey} />
 
           <View style={styles.totalCard} lightColor="#111827" darkColor="#111827">
           <Text style={styles.totalLabel} lightColor="#cbd5e1" darkColor="#cbd5e1">
