@@ -1,0 +1,570 @@
+import { useEffect, useMemo, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, TextInput } from 'react-native';
+
+import { Text, View } from '@/components/Themed';
+import {
+  Customer,
+  EstimateRecord,
+  formatCurrency,
+  InvoiceRecord,
+  mockCustomers,
+  mockEstimateRecords,
+  mockInvoiceRecords,
+  supabaseTableDefinitions,
+} from '@/lib/officeData';
+import { getSupabaseSetupMessage } from '@/lib/supabaseClient';
+import {
+  createCustomerDraft,
+  fetchCustomers,
+  fetchEstimateRecords,
+  fetchInvoiceRecords,
+  upsertCustomer,
+} from '@/lib/supabaseRepositories';
+
+type TabKey = 'customers' | 'estimates' | 'invoices' | 'supabase';
+
+export default function SettingsScreen() {
+  const [activeTab, setActiveTab] = useState<TabKey>('customers');
+  const [customers, setCustomers] = useState<Customer[]>(mockCustomers);
+  const [estimateRecords, setEstimateRecords] = useState<EstimateRecord[]>(mockEstimateRecords);
+  const [invoiceRecords, setInvoiceRecords] = useState<InvoiceRecord[]>(mockInvoiceRecords);
+  const [editingCustomerId, setEditingCustomerId] = useState(customers[0]?.id ?? '');
+  const [syncStatus, setSyncStatus] = useState(getSupabaseSetupMessage());
+  const editingCustomer = customers.find((customer) => customer.id === editingCustomerId) ?? customers[0];
+  const customerForm = useMemo(
+    () => ({
+      address: editingCustomer?.address ?? '',
+      contactName: editingCustomer?.contactName ?? '',
+      email: editingCustomer?.email ?? '',
+      memo: editingCustomer?.memo ?? '',
+      name: editingCustomer?.name ?? '',
+      phone: editingCustomer?.phone ?? '',
+    }),
+    [editingCustomer]
+  );
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadDbRecords() {
+      try {
+        const [dbCustomers, dbEstimates, dbInvoices] = await Promise.all([
+          fetchCustomers(),
+          fetchEstimateRecords(),
+          fetchInvoiceRecords(),
+        ]);
+
+        if (!isMounted) {
+          return;
+        }
+
+        if (dbCustomers.length > 0) {
+          setCustomers(dbCustomers);
+          setEditingCustomerId(dbCustomers[0].id);
+        }
+        setEstimateRecords(dbEstimates.length > 0 ? dbEstimates : mockEstimateRecords);
+        setInvoiceRecords(dbInvoices.length > 0 ? dbInvoices : mockInvoiceRecords);
+        setSyncStatus('Supabaseから顧客・見積履歴・請求書履歴を読み込みました。');
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Supabaseの読み込みに失敗しました。';
+        setSyncStatus(`${message} サンプルデータを表示しています。`);
+      }
+    }
+
+    loadDbRecords();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleCustomerChange = (field: keyof typeof customerForm, value: string) => {
+    if (!editingCustomer) {
+      return;
+    }
+
+    setCustomers((currentCustomers) =>
+      currentCustomers.map((customer) =>
+        customer.id === editingCustomer.id
+          ? {
+              ...customer,
+              [field]: value,
+              updatedAt: new Date().toISOString().slice(0, 10),
+            }
+          : customer
+      )
+    );
+  };
+
+  const handleAddCustomer = async () => {
+    const nextCustomer = createCustomerDraft(customers.length + 1);
+
+    setCustomers((currentCustomers) => [nextCustomer, ...currentCustomers]);
+    setEditingCustomerId(nextCustomer.id);
+    setActiveTab('customers');
+    setSyncStatus('顧客をDBに保存しています...');
+
+    try {
+      const savedCustomer = await upsertCustomer(nextCustomer);
+      setCustomers((currentCustomers) =>
+        currentCustomers.map((customer) => (customer.id === nextCustomer.id ? savedCustomer : customer))
+      );
+      setEditingCustomerId(savedCustomer.id);
+      setSyncStatus('顧客をDBに追加しました。');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '顧客追加のDB保存に失敗しました。';
+      setSyncStatus(`${message} 画面上には追加済みです。`);
+    }
+  };
+
+  const handleSaveCustomer = async () => {
+    if (!editingCustomer) {
+      return;
+    }
+
+    setSyncStatus('顧客情報をDBに保存しています...');
+
+    try {
+      const savedCustomer = await upsertCustomer(editingCustomer);
+      setCustomers((currentCustomers) =>
+        currentCustomers.map((customer) => (customer.id === savedCustomer.id ? savedCustomer : customer))
+      );
+      setEditingCustomerId(savedCustomer.id);
+      setSyncStatus('顧客情報をDBに保存しました。');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '顧客情報のDB保存に失敗しました。';
+      setSyncStatus(message);
+    }
+  };
+
+  return (
+    <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
+      <View style={styles.content} lightColor="transparent" darkColor="transparent">
+        <View style={styles.header} lightColor="transparent" darkColor="transparent">
+          <Text style={styles.eyebrow}>Workspace</Text>
+          <Text style={styles.title}>管理</Text>
+          <Text style={styles.description}>
+            顧客、見積履歴、請求書履歴、Supabase導入準備をまとめて管理します。
+          </Text>
+          <Text style={styles.syncStatus}>{syncStatus}</Text>
+        </View>
+
+        <View style={styles.segmented} lightColor="transparent" darkColor="transparent">
+          <SegmentButton active={activeTab === 'customers'} label="顧客" onPress={() => setActiveTab('customers')} />
+          <SegmentButton active={activeTab === 'estimates'} label="見積" onPress={() => setActiveTab('estimates')} />
+          <SegmentButton active={activeTab === 'invoices'} label="請求" onPress={() => setActiveTab('invoices')} />
+          <SegmentButton active={activeTab === 'supabase'} label="DB設計" onPress={() => setActiveTab('supabase')} />
+        </View>
+
+        {activeTab === 'customers' ? (
+          <>
+            <View style={styles.panel}>
+              <View style={styles.panelHeader} lightColor="transparent" darkColor="transparent">
+                <View lightColor="transparent" darkColor="transparent">
+                  <Text style={styles.panelTitle}>顧客一覧</Text>
+                  <Text style={styles.panelMeta}>{customers.length}社を管理中</Text>
+                </View>
+                <Pressable style={styles.primaryButton} onPress={handleAddCustomer}>
+                  <Text style={styles.primaryButtonText} lightColor="#ffffff" darkColor="#ffffff">
+                    顧客追加
+                  </Text>
+                </Pressable>
+              </View>
+
+              {customers.map((customer) => (
+                <Pressable
+                  key={customer.id}
+                  style={[styles.customerRow, customer.id === editingCustomer?.id ? styles.activeRow : undefined]}
+                  onPress={() => setEditingCustomerId(customer.id)}>
+                  <View style={styles.rowBody} lightColor="transparent" darkColor="transparent">
+                    <Text style={styles.rowTitle}>{customer.name}</Text>
+                    <Text style={styles.rowSub}>
+                      {customer.contactName || '担当者未設定'} / {customer.email || 'メール未設定'}
+                    </Text>
+                  </View>
+                  <Text style={styles.status}>{customer.updatedAt}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <View style={styles.panel}>
+              <View style={styles.panelHeader} lightColor="transparent" darkColor="transparent">
+                <View lightColor="transparent" darkColor="transparent">
+                  <Text style={styles.panelTitle}>顧客編集</Text>
+                  <Text style={styles.panelMeta}>選択中の顧客情報を編集できます。</Text>
+                </View>
+              </View>
+              <Field
+                label="顧客名"
+                value={customerForm.name}
+                onChangeText={(value) => handleCustomerChange('name', value)}
+                placeholder="株式会社サンプル"
+              />
+              <Field
+                label="担当者"
+                value={customerForm.contactName}
+                onChangeText={(value) => handleCustomerChange('contactName', value)}
+                placeholder="山田 太郎"
+              />
+              <Field
+                label="メール"
+                value={customerForm.email}
+                onChangeText={(value) => handleCustomerChange('email', value)}
+                placeholder="client@example.com"
+                keyboardType="email-address"
+              />
+              <Field
+                label="電話番号"
+                value={customerForm.phone}
+                onChangeText={(value) => handleCustomerChange('phone', value)}
+                placeholder="03-1234-5678"
+                keyboardType="phone-pad"
+              />
+              <Field
+                label="住所"
+                value={customerForm.address}
+                onChangeText={(value) => handleCustomerChange('address', value)}
+                placeholder="東京都..."
+              />
+              <Field
+                label="メモ"
+                value={customerForm.memo}
+                onChangeText={(value) => handleCustomerChange('memo', value)}
+                placeholder="支払条件や商談メモ"
+                multiline
+              />
+              <Pressable style={styles.primaryButton} onPress={handleSaveCustomer}>
+                <Text style={styles.primaryButtonText} lightColor="#ffffff" darkColor="#ffffff">
+                  顧客情報をDB保存
+                </Text>
+              </Pressable>
+            </View>
+          </>
+        ) : null}
+
+        {activeTab === 'estimates' ? (
+          <View style={styles.panel}>
+            <View style={styles.panelHeader} lightColor="transparent" darkColor="transparent">
+              <View lightColor="transparent" darkColor="transparent">
+                <Text style={styles.panelTitle}>見積履歴</Text>
+                <Text style={styles.panelMeta}>過去の見積保存、一覧表示、再編集のUIです。</Text>
+              </View>
+            </View>
+            {estimateRecords.map((estimate) => (
+              <View key={estimate.id} style={styles.historyCard}>
+                <View style={styles.rowBody} lightColor="transparent" darkColor="transparent">
+                  <Text style={styles.rowTitle}>{estimate.projectName}</Text>
+                  <Text style={styles.rowSub}>
+                    {estimate.customerName} / {estimate.issuedAt}
+                  </Text>
+                </View>
+                <View style={styles.historyFooter} lightColor="transparent" darkColor="transparent">
+                  <Text style={styles.rowAmount}>{formatCurrency(estimate.amount)}</Text>
+                  <Pressable style={styles.secondaryButton}>
+                    <Text style={styles.secondaryButtonText}>再編集</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ))}
+          </View>
+        ) : null}
+
+        {activeTab === 'invoices' ? (
+          <View style={styles.panel}>
+            <View style={styles.panelHeader} lightColor="transparent" darkColor="transparent">
+              <View lightColor="transparent" darkColor="transparent">
+                <Text style={styles.panelTitle}>請求書履歴</Text>
+                <Text style={styles.panelMeta}>過去の請求書保存と一覧表示のUIです。</Text>
+              </View>
+            </View>
+            {invoiceRecords.map((invoice) => (
+              <View key={invoice.id} style={styles.historyCard}>
+                <View style={styles.rowBody} lightColor="transparent" darkColor="transparent">
+                  <Text style={styles.rowTitle}>{invoice.invoiceNumber}</Text>
+                  <Text style={styles.rowSub}>
+                    {invoice.customerName} / 期限 {invoice.dueDate}
+                  </Text>
+                </View>
+                <View style={styles.historyFooter} lightColor="transparent" darkColor="transparent">
+                  <Text style={styles.rowAmount}>{formatCurrency(invoice.amount)}</Text>
+                  <Text style={styles.status}>{invoice.status === 'paid' ? '入金済み' : '未入金'}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        ) : null}
+
+        {activeTab === 'supabase' ? (
+          <View style={styles.panel}>
+            <View style={styles.panelHeader} lightColor="transparent" darkColor="transparent">
+              <View lightColor="transparent" darkColor="transparent">
+                <Text style={styles.panelTitle}>Supabase導入準備</Text>
+                <Text style={styles.panelMeta}>DB接続前のデータ構造設計と型定義です。</Text>
+              </View>
+            </View>
+            {supabaseTableDefinitions.map((table) => (
+              <View key={table.name} style={styles.schemaCard}>
+                <Text style={styles.schemaTitle}>{table.name}</Text>
+                <Text style={styles.rowSub}>{table.purpose}</Text>
+                {table.columns.map((column) => (
+                  <View key={column.name} style={styles.schemaRow} lightColor="transparent" darkColor="transparent">
+                    <Text style={styles.schemaColumn}>{column.name}</Text>
+                    <Text style={styles.schemaType}>{column.type}</Text>
+                    <Text style={styles.schemaNote}>{column.note}</Text>
+                  </View>
+                ))}
+              </View>
+            ))}
+          </View>
+        ) : null}
+      </View>
+    </ScrollView>
+  );
+}
+
+function SegmentButton({ active, label, onPress }: { active: boolean; label: string; onPress: () => void }) {
+  return (
+    <Pressable style={[styles.segmentButton, active ? styles.segmentButtonActive : undefined]} onPress={onPress}>
+      <Text style={[styles.segmentText, active ? styles.segmentTextActive : undefined]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+type FieldProps = {
+  label: string;
+  value: string;
+  onChangeText: (value: string) => void;
+  placeholder: string;
+  keyboardType?: 'default' | 'email-address' | 'phone-pad';
+  multiline?: boolean;
+};
+
+function Field({ keyboardType = 'default', label, multiline, onChangeText, placeholder, value }: FieldProps) {
+  return (
+    <View style={styles.field} lightColor="transparent" darkColor="transparent">
+      <Text style={styles.label}>{label}</Text>
+      <TextInput
+        style={[styles.input, multiline ? styles.textArea : undefined]}
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor="#9ca3af"
+        keyboardType={keyboardType}
+        multiline={multiline}
+      />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: '#f5f7fb',
+  },
+  container: {
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 20,
+  },
+  content: {
+    width: '100%',
+    maxWidth: 600,
+    gap: 14,
+  },
+  header: {
+    gap: 6,
+  },
+  eyebrow: {
+    color: '#2563eb',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  title: {
+    color: '#111827',
+    fontSize: 28,
+    fontWeight: '800',
+  },
+  description: {
+    color: '#64748b',
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  syncStatus: {
+    color: '#2563eb',
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 18,
+  },
+  segmented: {
+    backgroundColor: '#e9eef6',
+    borderRadius: 8,
+    gap: 6,
+    padding: 4,
+  },
+  segmentButton: {
+    alignItems: 'center',
+    borderRadius: 6,
+    paddingVertical: 10,
+  },
+  segmentButtonActive: {
+    backgroundColor: '#ffffff',
+  },
+  segmentText: {
+    color: '#64748b',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  segmentTextActive: {
+    color: '#111827',
+  },
+  panel: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+    padding: 16,
+    backgroundColor: '#ffffff',
+    gap: 14,
+  },
+  panelHeader: {
+    gap: 10,
+  },
+  panelTitle: {
+    color: '#111827',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  panelMeta: {
+    color: '#64748b',
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  primaryButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#2563eb',
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  primaryButtonText: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  secondaryButton: {
+    borderWidth: 1,
+    borderColor: '#d8dee8',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  secondaryButtonText: {
+    color: '#2563eb',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  customerRow: {
+    borderWidth: 1,
+    borderColor: '#eef2f7',
+    borderRadius: 8,
+    padding: 12,
+    backgroundColor: '#ffffff',
+    gap: 6,
+  },
+  activeRow: {
+    borderColor: '#2563eb',
+    backgroundColor: '#eff6ff',
+  },
+  rowBody: {
+    gap: 3,
+  },
+  rowTitle: {
+    color: '#111827',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  rowSub: {
+    color: '#64748b',
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  rowAmount: {
+    color: '#111827',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  status: {
+    color: '#2563eb',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  field: {
+    gap: 6,
+  },
+  label: {
+    color: '#374151',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  input: {
+    minHeight: 42,
+    borderWidth: 1,
+    borderColor: '#d8dee8',
+    borderRadius: 8,
+    paddingHorizontal: 13,
+    paddingVertical: 9,
+    backgroundColor: '#ffffff',
+    color: '#111827',
+    fontSize: 16,
+  },
+  textArea: {
+    minHeight: 84,
+    textAlignVertical: 'top',
+  },
+  historyCard: {
+    borderWidth: 1,
+    borderColor: '#eef2f7',
+    borderRadius: 8,
+    padding: 12,
+    backgroundColor: '#ffffff',
+    gap: 10,
+  },
+  historyFooter: {
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  schemaCard: {
+    borderWidth: 1,
+    borderColor: '#eef2f7',
+    borderRadius: 8,
+    padding: 12,
+    backgroundColor: '#ffffff',
+    gap: 10,
+  },
+  schemaTitle: {
+    color: '#111827',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  schemaRow: {
+    borderTopWidth: 1,
+    borderTopColor: '#eef2f7',
+    gap: 3,
+    paddingTop: 8,
+  },
+  schemaColumn: {
+    color: '#111827',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  schemaType: {
+    color: '#2563eb',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  schemaNote: {
+    color: '#64748b',
+    fontSize: 12,
+    lineHeight: 17,
+  },
+});
