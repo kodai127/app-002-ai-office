@@ -61,8 +61,11 @@ SQL定義は [supabase/schema.sql](./supabase/schema.sql) にあります。
 EXPO_PUBLIC_SUPABASE_URL=
 EXPO_PUBLIC_SUPABASE_ANON_KEY=
 EXPO_PUBLIC_SITE_URL=https://app-002-ai-office.vercel.app
-EXPO_PUBLIC_STRIPE_PRO_PAYMENT_LINK=
-EXPO_PUBLIC_STRIPE_BUSINESS_PAYMENT_LINK=
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
+STRIPE_PRO_PRICE_ID=
+STRIPE_BUSINESS_PRICE_ID=
+SUPABASE_SERVICE_ROLE_KEY=
 ```
 
 ローカルでは `.env.local` に設定します。
@@ -81,16 +84,32 @@ Redirect URLs: https://app-002-ai-office.vercel.app
 
 このSQLは `profiles`、`customers`、`estimates`、`invoices` を作成し、`auth.uid()` ベースのRLSでユーザー別にデータを分離します。
 
-### Stripe設定
+### Stripe Checkout / Webhook設定
 
-Stripe Dashboardで月額商品のPayment Linkを作成し、Vercel環境変数に設定します。
+Stripe Dashboardで月額商品とPriceを作成し、Vercel環境変数に設定します。
 
-```env
-EXPO_PUBLIC_STRIPE_PRO_PAYMENT_LINK=https://buy.stripe.com/...
-EXPO_PUBLIC_STRIPE_BUSINESS_PAYMENT_LINK=https://buy.stripe.com/...
+```text
+Pro: 月額980円
+Business: 月額2980円
 ```
 
-現時点ではPayment Linkを開く導線まで実装しています。Webhookで `profiles.plan` と `profiles.subscription_status` を自動更新する処理は次フェーズです。
+Vercel環境変数:
+
+```env
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_PRO_PRICE_ID=price_...
+STRIPE_BUSINESS_PRICE_ID=price_...
+SUPABASE_SERVICE_ROLE_KEY=
+```
+
+Webhook endpoint:
+
+```text
+https://app-002-ai-office.vercel.app/api/stripe-webhook
+```
+
+購読イベントを受信すると、`profiles.plan` と `profiles.subscription_status` が自動更新されます。
 
 ## ローカル起動方法
 
@@ -138,8 +157,11 @@ Install Command: npm install
 EXPO_PUBLIC_SITE_URL=https://app-002-ai-office.vercel.app
 EXPO_PUBLIC_SUPABASE_URL=
 EXPO_PUBLIC_SUPABASE_ANON_KEY=
-EXPO_PUBLIC_STRIPE_PRO_PAYMENT_LINK=
-EXPO_PUBLIC_STRIPE_BUSINESS_PAYMENT_LINK=
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
+STRIPE_PRO_PRICE_ID=
+STRIPE_BUSINESS_PRICE_ID=
+SUPABASE_SERVICE_ROLE_KEY=
 ```
 
 Supabaseを使わずにまず画面確認だけ行う場合、`EXPO_PUBLIC_SUPABASE_URL` と `EXPO_PUBLIC_SUPABASE_ANON_KEY` は未設定でも起動できます。その場合はサンプルデータとブラウザ内ローカル保存で動作します。

@@ -39,6 +39,9 @@ export type BillingProfile = {
   subscriptionStatus: string;
 };
 
+const freeMonthlyCloudSaveLimit = 3;
+const paidSubscriptionStatuses = ['active', 'trialing', 'past_due'];
+
 export function mapProfileRow(row: ProfileRow): BillingProfile {
   return {
     id: row.id,
@@ -91,6 +94,72 @@ export async function fetchOrCreateProfile() {
   }
 
   return mapProfileRow(data);
+}
+
+function isPaidProfile(profile: BillingProfile) {
+  return (
+    (profile.plan === 'pro' || profile.plan === 'business') &&
+    paidSubscriptionStatuses.includes(profile.subscriptionStatus)
+  );
+}
+
+function getCurrentMonthRange() {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), 1);
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+  return {
+    end: end.toISOString().slice(0, 10),
+    start: start.toISOString().slice(0, 10),
+  };
+}
+
+async function assertPaidCustomerManagement() {
+  const profile = await fetchOrCreateProfile();
+
+  if (!isPaidProfile(profile)) {
+    throw new Error('顧客管理のクラウド保存はPro/Businessプランで利用できます。');
+  }
+}
+
+async function assertCanSaveBusinessRecord() {
+  const profile = await fetchOrCreateProfile();
+
+  if (isPaidProfile(profile)) {
+    return;
+  }
+
+  const client = assertSupabase();
+  const userId = await requireUserId();
+  const { start, end } = getCurrentMonthRange();
+  const [estimateCountResult, invoiceCountResult] = await Promise.all([
+    client
+      .from('estimates')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .gte('issued_at', start)
+      .lt('issued_at', end),
+    client
+      .from('invoices')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .gte('issued_at', start)
+      .lt('issued_at', end),
+  ]);
+
+  if (estimateCountResult.error) {
+    throw estimateCountResult.error;
+  }
+
+  if (invoiceCountResult.error) {
+    throw invoiceCountResult.error;
+  }
+
+  const usedCount = (estimateCountResult.count ?? 0) + (invoiceCountResult.count ?? 0);
+
+  if (usedCount >= freeMonthlyCloudSaveLimit) {
+    throw new Error('Freeプランのクラウド保存は月3回までです。Pro/Businessへアップグレードしてください。');
+  }
 }
 
 export function mapCustomerRow(row: CustomerRow): Customer {
@@ -157,6 +226,7 @@ export async function fetchCustomers() {
 
 export async function upsertCustomer(customer: Customer) {
   const client = assertSupabase();
+  await assertPaidCustomerManagement();
   const userId = await requireUserId();
   const now = new Date().toISOString();
   const { data, error } = await client
@@ -211,6 +281,7 @@ export async function saveEstimateRecord(record: {
   workDescription: string;
 }) {
   const client = assertSupabase();
+  await assertCanSaveBusinessRecord();
   const userId = await requireUserId();
   const now = new Date();
   const { data, error } = await client
@@ -267,6 +338,7 @@ export async function saveInvoiceRecord(record: {
   workDescription: string;
 }) {
   const client = assertSupabase();
+  await assertCanSaveBusinessRecord();
   const userId = await requireUserId();
   const now = new Date().toISOString();
   const { data, error } = await client

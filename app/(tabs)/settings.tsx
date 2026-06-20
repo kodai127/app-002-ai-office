@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, TextInput } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 
 import { AuthPanel } from '@/components/AuthPanel';
 import { SeoHead } from '@/components/SeoHead';
@@ -28,6 +29,7 @@ import {
 type TabKey = 'customers' | 'estimates' | 'invoices' | 'billing' | 'supabase';
 
 export default function SettingsScreen() {
+  const params = useLocalSearchParams<{ checkout?: string }>();
   const [activeTab, setActiveTab] = useState<TabKey>('customers');
   const [customers, setCustomers] = useState<Customer[]>(mockCustomers);
   const [estimateRecords, setEstimateRecords] = useState<EstimateRecord[]>(mockEstimateRecords);
@@ -84,6 +86,18 @@ export default function SettingsScreen() {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (params.checkout === 'success') {
+      setActiveTab('billing');
+      setBillingStatus('決済が完了しました。Stripe Webhook反映後にプラン状態が更新されます。');
+    }
+
+    if (params.checkout === 'cancel') {
+      setActiveTab('billing');
+      setBillingStatus('決済はキャンセルされました。必要に応じて再度お申し込みください。');
+    }
+  }, [params.checkout]);
 
   const handleCustomerChange = (field: keyof typeof customerForm, value: string) => {
     if (!editingCustomer) {

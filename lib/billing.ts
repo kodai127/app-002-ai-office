@@ -1,11 +1,12 @@
 import { Linking } from 'react-native';
 
+import { isSupabaseConfigured, supabase } from './supabaseClient';
+
 export type BillingPlan = {
   description: string;
   features: string[];
   key: 'free' | 'pro' | 'business';
   monthlyPrice: string;
-  paymentLink?: string;
   title: string;
 };
 
@@ -22,7 +23,6 @@ export const billingPlans: BillingPlan[] = [
     features: ['顧客管理', '請求書履歴', 'PDF出力', 'Supabase同期'],
     key: 'pro',
     monthlyPrice: '980円',
-    paymentLink: process.env.EXPO_PUBLIC_STRIPE_PRO_PAYMENT_LINK,
     title: 'Pro',
   },
   {
@@ -30,15 +30,38 @@ export const billingPlans: BillingPlan[] = [
     features: ['Pro機能すべて', '複数顧客運用', '履歴管理強化', '優先改善対象'],
     key: 'business',
     monthlyPrice: '2,980円',
-    paymentLink: process.env.EXPO_PUBLIC_STRIPE_BUSINESS_PAYMENT_LINK,
     title: 'Business',
   },
 ];
 
 export async function openBillingLink(plan: BillingPlan) {
-  if (!plan.paymentLink) {
-    throw new Error(`${plan.title}のStripe Payment Linkが未設定です。`);
+  if (plan.key === 'free') {
+    return;
   }
 
-  await Linking.openURL(plan.paymentLink);
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error('Stripe CheckoutにはSupabaseログイン設定が必要です。');
+  }
+
+  const { data, error } = await supabase.auth.getSession();
+
+  if (error || !data.session?.access_token) {
+    throw new Error('Stripe Checkoutにはログインが必要です。');
+  }
+
+  const response = await fetch('/api/create-checkout-session', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${data.session.access_token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ plan: plan.key }),
+  });
+  const payload = (await response.json()) as { error?: string; url?: string };
+
+  if (!response.ok || !payload.url) {
+    throw new Error(payload.error ?? 'Stripe Checkoutを開始できませんでした。');
+  }
+
+  await Linking.openURL(payload.url);
 }
