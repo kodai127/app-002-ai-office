@@ -374,7 +374,11 @@ export default function SettingsScreen() {
                     style={plan.key === 'free' ? styles.secondaryButtonText : styles.primaryButtonText}
                     lightColor={plan.key === 'free' ? '#2563eb' : '#ffffff'}
                     darkColor={plan.key === 'free' ? '#2563eb' : '#ffffff'}>
-                    {plan.key === 'free' ? 'Freeで始める' : 'Stripeで申し込む'}
+                    {plan.key === 'free'
+                      ? 'Freeで始める'
+                      : plan.key === 'pro'
+                        ? '980円で始める'
+                        : 'Stripeで申し込む'}
                   </Text>
                 </Pressable>
               </View>

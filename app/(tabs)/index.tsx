@@ -4,7 +4,7 @@ import { Link } from 'expo-router';
 
 import { Text, View } from '@/components/Themed';
 import { SeoHead } from '@/components/SeoHead';
-import { billingPlans } from '@/lib/billing';
+import { billingPlans, proPaymentLink } from '@/lib/billing';
 import {
   formatCurrency,
   isThisMonth,
@@ -173,6 +173,9 @@ export default function HomeScreen() {
                 <Text style={styles.status}>{plan.key === 'free' ? '体験' : 'Stripe対応'}</Text>
               </View>
             ))}
+            <Link href={proPaymentLink} target="_blank" style={styles.primaryLink}>
+              980円で始める
+            </Link>
             <Link href="/settings" style={styles.primaryLink}>
               ログイン・料金管理へ
             </Link>

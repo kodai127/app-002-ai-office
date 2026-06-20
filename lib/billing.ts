@@ -7,8 +7,11 @@ export type BillingPlan = {
   features: string[];
   key: 'free' | 'pro' | 'business';
   monthlyPrice: string;
+  paymentLink?: string;
   title: string;
 };
+
+export const proPaymentLink = 'https://buy.stripe.com/6oUfZi9Ce7uwdGH9e74gg00';
 
 export const billingPlans: BillingPlan[] = [
   {
@@ -23,6 +26,7 @@ export const billingPlans: BillingPlan[] = [
     features: ['顧客管理', '請求書履歴', 'PDF出力', 'Supabase同期'],
     key: 'pro',
     monthlyPrice: '980円',
+    paymentLink: proPaymentLink,
     title: 'Pro',
   },
   {
@@ -36,6 +40,11 @@ export const billingPlans: BillingPlan[] = [
 
 export async function openBillingLink(plan: BillingPlan) {
   if (plan.key === 'free') {
+    return;
+  }
+
+  if (plan.paymentLink) {
+    await Linking.openURL(plan.paymentLink);
     return;
   }
 
