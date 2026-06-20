@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://app-002-ai-office.vercel.app/sitemap.xml

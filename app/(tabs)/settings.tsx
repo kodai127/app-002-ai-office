@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, TextInput } from 'react-native';
 
+import { AuthPanel } from '@/components/AuthPanel';
+import { SeoHead } from '@/components/SeoHead';
 import { Text, View } from '@/components/Themed';
+import { billingPlans, openBillingLink } from '@/lib/billing';
 import {
   Customer,
   EstimateRecord,
@@ -15,13 +18,14 @@ import {
 import { getSupabaseSetupMessage } from '@/lib/supabaseClient';
 import {
   createCustomerDraft,
+  fetchOrCreateProfile,
   fetchCustomers,
   fetchEstimateRecords,
   fetchInvoiceRecords,
   upsertCustomer,
 } from '@/lib/supabaseRepositories';
 
-type TabKey = 'customers' | 'estimates' | 'invoices' | 'supabase';
+type TabKey = 'customers' | 'estimates' | 'invoices' | 'billing' | 'supabase';
 
 export default function SettingsScreen() {
   const [activeTab, setActiveTab] = useState<TabKey>('customers');
@@ -29,6 +33,7 @@ export default function SettingsScreen() {
   const [estimateRecords, setEstimateRecords] = useState<EstimateRecord[]>(mockEstimateRecords);
   const [invoiceRecords, setInvoiceRecords] = useState<InvoiceRecord[]>(mockInvoiceRecords);
   const [editingCustomerId, setEditingCustomerId] = useState(customers[0]?.id ?? '');
+  const [billingStatus, setBillingStatus] = useState('Freeプラン: ローカル保存とPDF出力を試せます。');
   const [syncStatus, setSyncStatus] = useState(getSupabaseSetupMessage());
   const editingCustomer = customers.find((customer) => customer.id === editingCustomerId) ?? customers[0];
   const customerForm = useMemo(
@@ -64,6 +69,8 @@ export default function SettingsScreen() {
         }
         setEstimateRecords(dbEstimates.length > 0 ? dbEstimates : mockEstimateRecords);
         setInvoiceRecords(dbInvoices.length > 0 ? dbInvoices : mockInvoiceRecords);
+        const profile = await fetchOrCreateProfile();
+        setBillingStatus(`${profile.plan.toUpperCase()}プラン / 状態: ${profile.subscriptionStatus}`);
         setSyncStatus('Supabaseから顧客・見積履歴・請求書履歴を読み込みました。');
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Supabaseの読み込みに失敗しました。';
@@ -94,6 +101,29 @@ export default function SettingsScreen() {
           : customer
       )
     );
+  };
+
+  const handleOpenBilling = async (planKey: 'free' | 'pro' | 'business') => {
+    const plan = billingPlans.find((billingPlan) => billingPlan.key === planKey);
+
+    if (!plan) {
+      return;
+    }
+
+    if (plan.key === 'free') {
+      setBillingStatus('Freeプランを利用中です。Pro以上で顧客管理と履歴保存を本格利用できます。');
+      return;
+    }
+
+    setBillingStatus(`${plan.title}の決済ページを開いています...`);
+
+    try {
+      await openBillingLink(plan);
+      setBillingStatus(`${plan.title}のStripe決済ページを開きました。`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Stripe決済ページを開けませんでした。';
+      setBillingStatus(message);
+    }
   };
 
   const handleAddCustomer = async () => {
@@ -138,25 +168,34 @@ export default function SettingsScreen() {
   };
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
-      <View style={styles.content} lightColor="transparent" darkColor="transparent">
-        <View style={styles.header} lightColor="transparent" darkColor="transparent">
-          <Text style={styles.eyebrow}>Workspace</Text>
-          <Text style={styles.title}>管理</Text>
-          <Text style={styles.description}>
-            顧客、見積履歴、請求書履歴、Supabase導入準備をまとめて管理します。
-          </Text>
-          <Text style={styles.syncStatus}>{syncStatus}</Text>
-        </View>
+    <>
+      <SeoHead
+        title="顧客・履歴管理"
+        description="顧客情報、見積履歴、請求書履歴をブラウザで管理できるAI Officeの管理画面です。"
+        path="/settings"
+      />
+      <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
+        <View style={styles.content} lightColor="transparent" darkColor="transparent">
+          <View style={styles.header} lightColor="transparent" darkColor="transparent">
+            <Text style={styles.eyebrow}>Workspace</Text>
+            <Text style={styles.title}>管理</Text>
+            <Text style={styles.description}>
+              ログイン、顧客、見積履歴、請求書履歴、月額プランをまとめて管理します。
+            </Text>
+            <Text style={styles.syncStatus}>{syncStatus}</Text>
+          </View>
 
-        <View style={styles.segmented} lightColor="transparent" darkColor="transparent">
+          <AuthPanel />
+
+          <View style={styles.segmented} lightColor="transparent" darkColor="transparent">
           <SegmentButton active={activeTab === 'customers'} label="顧客" onPress={() => setActiveTab('customers')} />
           <SegmentButton active={activeTab === 'estimates'} label="見積" onPress={() => setActiveTab('estimates')} />
           <SegmentButton active={activeTab === 'invoices'} label="請求" onPress={() => setActiveTab('invoices')} />
+          <SegmentButton active={activeTab === 'billing'} label="料金" onPress={() => setActiveTab('billing')} />
           <SegmentButton active={activeTab === 'supabase'} label="DB設計" onPress={() => setActiveTab('supabase')} />
-        </View>
+          </View>
 
-        {activeTab === 'customers' ? (
+          {activeTab === 'customers' ? (
           <>
             <View style={styles.panel}>
               <View style={styles.panelHeader} lightColor="transparent" darkColor="transparent">
@@ -240,9 +279,9 @@ export default function SettingsScreen() {
               </Pressable>
             </View>
           </>
-        ) : null}
+          ) : null}
 
-        {activeTab === 'estimates' ? (
+          {activeTab === 'estimates' ? (
           <View style={styles.panel}>
             <View style={styles.panelHeader} lightColor="transparent" darkColor="transparent">
               <View lightColor="transparent" darkColor="transparent">
@@ -267,9 +306,9 @@ export default function SettingsScreen() {
               </View>
             ))}
           </View>
-        ) : null}
+          ) : null}
 
-        {activeTab === 'invoices' ? (
+          {activeTab === 'invoices' ? (
           <View style={styles.panel}>
             <View style={styles.panelHeader} lightColor="transparent" darkColor="transparent">
               <View lightColor="transparent" darkColor="transparent">
@@ -292,9 +331,44 @@ export default function SettingsScreen() {
               </View>
             ))}
           </View>
-        ) : null}
+          ) : null}
 
-        {activeTab === 'supabase' ? (
+          {activeTab === 'billing' ? (
+          <View style={styles.panel}>
+            <View style={styles.panelHeader} lightColor="transparent" darkColor="transparent">
+              <View lightColor="transparent" darkColor="transparent">
+                <Text style={styles.panelTitle}>料金プラン</Text>
+                <Text style={styles.panelMeta}>月300万円を目標に、FreeからPro/Businessへアップグレードする導線です。</Text>
+              </View>
+              <Text style={styles.syncStatus}>{billingStatus}</Text>
+            </View>
+            {billingPlans.map((plan) => (
+              <View key={plan.key} style={styles.planCard}>
+                <View style={styles.rowBody} lightColor="transparent" darkColor="transparent">
+                  <Text style={styles.rowTitle}>
+                    {plan.title} / 月額{plan.monthlyPrice}
+                  </Text>
+                  <Text style={styles.rowSub}>{plan.description}</Text>
+                </View>
+                {plan.features.map((feature) => (
+                  <Text key={feature} style={styles.planFeature}>・{feature}</Text>
+                ))}
+                <Pressable
+                  style={plan.key === 'free' ? styles.secondaryButton : styles.primaryButton}
+                  onPress={() => handleOpenBilling(plan.key)}>
+                  <Text
+                    style={plan.key === 'free' ? styles.secondaryButtonText : styles.primaryButtonText}
+                    lightColor={plan.key === 'free' ? '#2563eb' : '#ffffff'}
+                    darkColor={plan.key === 'free' ? '#2563eb' : '#ffffff'}>
+                    {plan.key === 'free' ? 'Freeで始める' : 'Stripeで申し込む'}
+                  </Text>
+                </Pressable>
+              </View>
+            ))}
+          </View>
+          ) : null}
+
+          {activeTab === 'supabase' ? (
           <View style={styles.panel}>
             <View style={styles.panelHeader} lightColor="transparent" darkColor="transparent">
               <View lightColor="transparent" darkColor="transparent">
@@ -316,9 +390,10 @@ export default function SettingsScreen() {
               </View>
             ))}
           </View>
-        ) : null}
-      </View>
-    </ScrollView>
+          ) : null}
+        </View>
+      </ScrollView>
+    </>
   );
 }
 
@@ -532,6 +607,19 @@ const styles = StyleSheet.create({
   historyFooter: {
     alignItems: 'flex-start',
     gap: 8,
+  },
+  planCard: {
+    borderWidth: 1,
+    borderColor: '#eef2f7',
+    borderRadius: 8,
+    padding: 12,
+    backgroundColor: '#ffffff',
+    gap: 9,
+  },
+  planFeature: {
+    color: '#475569',
+    fontSize: 13,
+    lineHeight: 18,
   },
   schemaCard: {
     borderWidth: 1,

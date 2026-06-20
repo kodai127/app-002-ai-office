@@ -60,9 +60,37 @@ SQL定義は [supabase/schema.sql](./supabase/schema.sql) にあります。
 ```env
 EXPO_PUBLIC_SUPABASE_URL=
 EXPO_PUBLIC_SUPABASE_ANON_KEY=
+EXPO_PUBLIC_SITE_URL=https://app-002-ai-office.vercel.app
+EXPO_PUBLIC_STRIPE_PRO_PAYMENT_LINK=
+EXPO_PUBLIC_STRIPE_BUSINESS_PAYMENT_LINK=
 ```
 
 ローカルでは `.env.local` に設定します。
+
+### SaaS化に必要なSupabase設定
+
+1. Supabase Dashboardで Email Auth を有効化します。
+2. Authentication > URL Configuration に公開URLを設定します。
+
+```text
+Site URL: https://app-002-ai-office.vercel.app
+Redirect URLs: https://app-002-ai-office.vercel.app
+```
+
+3. SQL Editorで [supabase/schema.sql](./supabase/schema.sql) を実行します。
+
+このSQLは `profiles`、`customers`、`estimates`、`invoices` を作成し、`auth.uid()` ベースのRLSでユーザー別にデータを分離します。
+
+### Stripe設定
+
+Stripe Dashboardで月額商品のPayment Linkを作成し、Vercel環境変数に設定します。
+
+```env
+EXPO_PUBLIC_STRIPE_PRO_PAYMENT_LINK=https://buy.stripe.com/...
+EXPO_PUBLIC_STRIPE_BUSINESS_PAYMENT_LINK=https://buy.stripe.com/...
+```
+
+現時点ではPayment Linkを開く導線まで実装しています。Webhookで `profiles.plan` と `profiles.subscription_status` を自動更新する処理は次フェーズです。
 
 ## ローカル起動方法
 
@@ -75,6 +103,65 @@ npm run web
 
 ```bash
 npm run web -- --port 8083 --clear
+```
+
+## Web公開方法（Vercel）
+
+このプロジェクトは Expo Router の静的Web出力を使って、Vercel へ公開できます。
+
+想定公開URL:
+
+```text
+https://app-002-ai-office.vercel.app
+```
+
+別のVercelプロジェクト名や独自ドメインを使う場合は、公開前に以下を実際のURLへ変更してください。
+
+- `EXPO_PUBLIC_SITE_URL`
+- `public/robots.txt` の Sitemap URL
+- `public/sitemap.xml` の各 `loc`
+
+### Vercelの設定
+
+Vercel Dashboard でこのリポジトリをImportし、以下の設定でDeployします。
+
+```text
+Framework Preset: Other
+Build Command: npx expo export -p web
+Output Directory: dist
+Install Command: npm install
+```
+
+環境変数:
+
+```env
+EXPO_PUBLIC_SITE_URL=https://app-002-ai-office.vercel.app
+EXPO_PUBLIC_SUPABASE_URL=
+EXPO_PUBLIC_SUPABASE_ANON_KEY=
+EXPO_PUBLIC_STRIPE_PRO_PAYMENT_LINK=
+EXPO_PUBLIC_STRIPE_BUSINESS_PAYMENT_LINK=
+```
+
+Supabaseを使わずにまず画面確認だけ行う場合、`EXPO_PUBLIC_SUPABASE_URL` と `EXPO_PUBLIC_SUPABASE_ANON_KEY` は未設定でも起動できます。その場合はサンプルデータとブラウザ内ローカル保存で動作します。
+
+### CLIで確認する場合
+
+```bash
+npx expo export -p web
+npx expo serve
+```
+
+Vercel CLIでデプロイする場合:
+
+```bash
+npm install --global vercel@latest
+vercel
+```
+
+本番URLへ反映する場合:
+
+```bash
+vercel --prod
 ```
 
 ## 今後のロードマップ

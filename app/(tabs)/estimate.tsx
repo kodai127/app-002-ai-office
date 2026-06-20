@@ -5,6 +5,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 
+import { SeoHead } from '@/components/SeoHead';
 import { Text, View } from '@/components/Themed';
 import { saveEstimateRecord } from '@/lib/supabaseRepositories';
 
@@ -452,18 +453,24 @@ export default function EstimateScreen() {
   };
 
   return (
-    <ScrollView
-      style={styles.screen}
-      contentContainerStyle={styles.container}
-      keyboardShouldPersistTaps="handled">
-      <View style={styles.content} lightColor="transparent" darkColor="transparent">
-        <View style={styles.header} lightColor="transparent" darkColor="transparent">
-          <Text style={styles.eyebrow}>見積金額</Text>
-          <Text style={styles.title}>AI見積書</Text>
-          <Text style={styles.description}>入力すると見積金額がリアルタイムで更新されます。</Text>
-        </View>
+    <>
+      <SeoHead
+        title="AI見積書"
+        description="ブラウザで工数と単価を入力して見積金額を自動計算し、見積書PDFを出力できます。"
+        path="/estimate"
+      />
+      <ScrollView
+        style={styles.screen}
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled">
+        <View style={styles.content} lightColor="transparent" darkColor="transparent">
+          <View style={styles.header} lightColor="transparent" darkColor="transparent">
+            <Text style={styles.eyebrow}>見積金額</Text>
+            <Text style={styles.title}>AI見積書</Text>
+            <Text style={styles.description}>入力すると見積金額がリアルタイムで更新されます。</Text>
+          </View>
 
-        <View style={styles.totalCard} lightColor="#111827" darkColor="#111827">
+          <View style={styles.totalCard} lightColor="#111827" darkColor="#111827">
           <Text style={styles.totalLabel} lightColor="#cbd5e1" darkColor="#cbd5e1">
             見積金額
           </Text>
@@ -499,9 +506,9 @@ export default function EstimateScreen() {
               {exportStatus}
             </Text>
           ) : null}
-        </View>
+          </View>
 
-        <View style={styles.formCard}>
+          <View style={styles.formCard}>
           <View style={styles.cardHeader} lightColor="transparent" darkColor="transparent">
             <Text style={styles.cardTitle}>入力内容</Text>
             <Text style={styles.cardDescription}>顧客情報と作業条件を入力してください。</Text>
@@ -545,9 +552,10 @@ export default function EstimateScreen() {
               suffix="円"
             />
           </View>
+          </View>
         </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </>
   );
 }
 

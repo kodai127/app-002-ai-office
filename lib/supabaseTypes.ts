@@ -3,9 +3,40 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 export type Database = {
   public: {
     Tables: {
+      profiles: {
+        Row: {
+          id: string;
+          email: string | null;
+          plan: 'free' | 'pro' | 'business';
+          stripe_customer_id: string | null;
+          subscription_status: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id: string;
+          email?: string | null;
+          plan?: 'free' | 'pro' | 'business';
+          stripe_customer_id?: string | null;
+          subscription_status?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          email?: string | null;
+          plan?: 'free' | 'pro' | 'business';
+          stripe_customer_id?: string | null;
+          subscription_status?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       customers: {
         Row: {
           id: string;
+          user_id: string;
           name: string;
           contact_name: string | null;
           email: string | null;
@@ -17,6 +48,7 @@ export type Database = {
         };
         Insert: {
           id?: string;
+          user_id: string;
           name: string;
           contact_name?: string | null;
           email?: string | null;
@@ -28,6 +60,7 @@ export type Database = {
         };
         Update: {
           id?: string;
+          user_id?: string;
           name?: string;
           contact_name?: string | null;
           email?: string | null;
@@ -42,6 +75,7 @@ export type Database = {
       estimates: {
         Row: {
           id: string;
+          user_id: string;
           customer_id: string | null;
           customer_name: string;
           project_name: string;
@@ -55,6 +89,7 @@ export type Database = {
         };
         Insert: {
           id?: string;
+          user_id: string;
           customer_id?: string | null;
           customer_name: string;
           project_name: string;
@@ -68,6 +103,7 @@ export type Database = {
         };
         Update: {
           id?: string;
+          user_id?: string;
           customer_id?: string | null;
           customer_name?: string;
           project_name?: string;
@@ -92,6 +128,7 @@ export type Database = {
       invoices: {
         Row: {
           id: string;
+          user_id: string;
           estimate_id: string | null;
           customer_id: string | null;
           customer_name: string;
@@ -110,6 +147,7 @@ export type Database = {
         };
         Insert: {
           id?: string;
+          user_id: string;
           estimate_id?: string | null;
           customer_id?: string | null;
           customer_name: string;
@@ -128,6 +166,7 @@ export type Database = {
         };
         Update: {
           id?: string;
+          user_id?: string;
           estimate_id?: string | null;
           customer_id?: string | null;
           customer_name?: string;
@@ -169,6 +208,7 @@ export type Database = {
   };
 };
 
+export type ProfileRow = Database['public']['Tables']['profiles']['Row'];
 export type CustomerRow = Database['public']['Tables']['customers']['Row'];
 export type EstimateRow = Database['public']['Tables']['estimates']['Row'];
 export type InvoiceRow = Database['public']['Tables']['invoices']['Row'];

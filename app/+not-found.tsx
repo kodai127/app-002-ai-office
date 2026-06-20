@@ -1,4 +1,5 @@
 import { Link, Stack } from 'expo-router';
+import Head from 'expo-router/head';
 import { StyleSheet } from 'react-native';
 
 import { Text, View } from '@/components/Themed';
@@ -6,6 +7,10 @@ import { Text, View } from '@/components/Themed';
 export default function NotFoundScreen() {
   return (
     <>
+      <Head>
+        <title>ページが見つかりません | AI Office</title>
+        <meta name="robots" content="noindex,nofollow" />
+      </Head>
       <Stack.Screen options={{ title: 'Oops!' }} />
       <View style={styles.container}>
         <Text style={styles.title}>This screen doesn't exist.</Text>

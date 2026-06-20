@@ -1,6 +1,7 @@
 import { Customer, EstimateRecord, InvoiceRecord } from './officeData';
+import { getCurrentUser } from './auth';
 import { isSupabaseConfigured, supabase } from './supabaseClient';
-import { CustomerRow, EstimateRow, InvoiceRow } from './supabaseTypes';
+import { CustomerRow, EstimateRow, InvoiceRow, ProfileRow } from './supabaseTypes';
 
 function assertSupabase() {
   if (!isSupabaseConfigured || !supabase) {
@@ -18,6 +19,78 @@ function createId(prefix: string) {
 
 function toNullable(value: string | undefined) {
   return value?.trim() ? value.trim() : null;
+}
+
+async function requireUserId() {
+  const user = await getCurrentUser();
+
+  if (!user) {
+    throw new Error('クラウド保存にはログインが必要です。');
+  }
+
+  return user.id;
+}
+
+export type BillingProfile = {
+  id: string;
+  email: string;
+  plan: 'free' | 'pro' | 'business';
+  stripeCustomerId: string;
+  subscriptionStatus: string;
+};
+
+export function mapProfileRow(row: ProfileRow): BillingProfile {
+  return {
+    id: row.id,
+    email: row.email ?? '',
+    plan: row.plan,
+    stripeCustomerId: row.stripe_customer_id ?? '',
+    subscriptionStatus: row.subscription_status,
+  };
+}
+
+export async function fetchOrCreateProfile() {
+  const client = assertSupabase();
+  const user = await getCurrentUser();
+
+  if (!user) {
+    throw new Error('プロフィール確認にはログインが必要です。');
+  }
+
+  const { data: existingProfile, error: fetchError } = await client
+    .from('profiles')
+    .select('*')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (fetchError) {
+    throw fetchError;
+  }
+
+  if (existingProfile) {
+    return mapProfileRow(existingProfile);
+  }
+
+  const now = new Date().toISOString();
+  const { data, error } = await client
+    .from('profiles')
+    .insert({
+      id: user.id,
+      email: user.email ?? null,
+      plan: 'free',
+      stripe_customer_id: null,
+      subscription_status: 'free',
+      created_at: now,
+      updated_at: now,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return mapProfileRow(data);
 }
 
 export function mapCustomerRow(row: CustomerRow): Customer {
@@ -68,7 +141,12 @@ export function mapInvoiceRow(row: InvoiceRow): InvoiceRecord {
 
 export async function fetchCustomers() {
   const client = assertSupabase();
-  const { data, error } = await client.from('customers').select('*').order('updated_at', { ascending: false });
+  const userId = await requireUserId();
+  const { data, error } = await client
+    .from('customers')
+    .select('*')
+    .eq('user_id', userId)
+    .order('updated_at', { ascending: false });
 
   if (error) {
     throw error;
@@ -79,12 +157,14 @@ export async function fetchCustomers() {
 
 export async function upsertCustomer(customer: Customer) {
   const client = assertSupabase();
+  const userId = await requireUserId();
   const now = new Date().toISOString();
   const { data, error } = await client
     .from('customers')
     .upsert(
       {
         id: customer.id || createId('cus'),
+        user_id: userId,
         name: customer.name || '新規顧客',
         contact_name: toNullable(customer.contactName),
         email: toNullable(customer.email),
@@ -108,7 +188,12 @@ export async function upsertCustomer(customer: Customer) {
 
 export async function fetchEstimateRecords() {
   const client = assertSupabase();
-  const { data, error } = await client.from('estimates').select('*').order('issued_at', { ascending: false });
+  const userId = await requireUserId();
+  const { data, error } = await client
+    .from('estimates')
+    .select('*')
+    .eq('user_id', userId)
+    .order('issued_at', { ascending: false });
 
   if (error) {
     throw error;
@@ -126,11 +211,13 @@ export async function saveEstimateRecord(record: {
   workDescription: string;
 }) {
   const client = assertSupabase();
+  const userId = await requireUserId();
   const now = new Date();
   const { data, error } = await client
     .from('estimates')
     .insert({
       id: createId('est'),
+      user_id: userId,
       customer_id: null,
       customer_name: record.customerName || '顧客名未入力',
       project_name: record.projectName || '案件名未入力',
@@ -154,7 +241,12 @@ export async function saveEstimateRecord(record: {
 
 export async function fetchInvoiceRecords() {
   const client = assertSupabase();
-  const { data, error } = await client.from('invoices').select('*').order('issued_at', { ascending: false });
+  const userId = await requireUserId();
+  const { data, error } = await client
+    .from('invoices')
+    .select('*')
+    .eq('user_id', userId)
+    .order('issued_at', { ascending: false });
 
   if (error) {
     throw error;
@@ -175,11 +267,13 @@ export async function saveInvoiceRecord(record: {
   workDescription: string;
 }) {
   const client = assertSupabase();
+  const userId = await requireUserId();
   const now = new Date().toISOString();
   const { data, error } = await client
     .from('invoices')
     .insert({
       id: createId('inv'),
+      user_id: userId,
       estimate_id: null,
       customer_id: null,
       customer_name: record.customerName || '顧客名未入力',

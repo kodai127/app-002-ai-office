@@ -155,10 +155,24 @@ export const mockInvoiceRecords: InvoiceRecord[] = [
 
 export const supabaseTableDefinitions: SupabaseTableDefinition[] = [
   {
+    name: 'profiles',
+    purpose: 'ログインユーザーのプランとStripe連携状態を管理。',
+    columns: [
+      { name: 'id', type: 'uuid primary key', note: 'auth.users.id と一致。' },
+      { name: 'email', type: 'text', note: 'ログインメール' },
+      { name: 'plan', type: 'text default free', note: 'free/pro/business' },
+      { name: 'stripe_customer_id', type: 'text', note: 'Stripe顧客ID' },
+      { name: 'subscription_status', type: 'text', note: 'free/active/canceled など' },
+      { name: 'created_at', type: 'timestamptz', note: '作成日時' },
+      { name: 'updated_at', type: 'timestamptz', note: '更新日時' },
+    ],
+  },
+  {
     name: 'customers',
     purpose: '顧客マスタ。見積・請求書の参照元。',
     columns: [
       { name: 'id', type: 'text primary key', note: '顧客ID。アプリ側で生成。' },
+      { name: 'user_id', type: 'uuid references auth.users(id)', note: '所有ユーザー。RLSで分離。' },
       { name: 'name', type: 'text not null', note: '会社名または顧客名' },
       { name: 'contact_name', type: 'text', note: '担当者名' },
       { name: 'email', type: 'text', note: '連絡先メール' },
@@ -174,6 +188,7 @@ export const supabaseTableDefinitions: SupabaseTableDefinition[] = [
     purpose: '見積履歴。再編集と請求書変換の元データ。',
     columns: [
       { name: 'id', type: 'text primary key', note: '見積ID。アプリ側で生成。' },
+      { name: 'user_id', type: 'uuid references auth.users(id)', note: '所有ユーザー。RLSで分離。' },
       { name: 'customer_id', type: 'text references customers(id)', note: '顧客ID。未紐付け時はnull。' },
       { name: 'customer_name', type: 'text not null', note: '保存時点の顧客名' },
       { name: 'project_name', type: 'text not null', note: '案件名' },
@@ -191,6 +206,7 @@ export const supabaseTableDefinitions: SupabaseTableDefinition[] = [
     purpose: '請求書履歴。入金管理とPDF再出力に利用。',
     columns: [
       { name: 'id', type: 'text primary key', note: '請求書ID。アプリ側で生成。' },
+      { name: 'user_id', type: 'uuid references auth.users(id)', note: '所有ユーザー。RLSで分離。' },
       { name: 'estimate_id', type: 'text references estimates(id)', note: '元見積ID。未紐付け時はnull。' },
       { name: 'customer_id', type: 'text references customers(id)', note: '顧客ID。未紐付け時はnull。' },
       { name: 'customer_name', type: 'text not null', note: '保存時点の顧客名' },

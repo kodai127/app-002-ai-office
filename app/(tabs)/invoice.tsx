@@ -5,8 +5,10 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 
+import { SeoHead } from '@/components/SeoHead';
 import { Text, View } from '@/components/Themed';
-import { saveInvoiceRecord } from '@/lib/supabaseRepositories';
+import { formatCurrency, InvoiceRecord } from '@/lib/officeData';
+import { fetchInvoiceRecords, saveInvoiceRecord } from '@/lib/supabaseRepositories';
 
 const numberFormatter = new Intl.NumberFormat('ja-JP', {
   maximumFractionDigits: 2,
@@ -50,6 +52,16 @@ type PrintWindow = {
 
 type BrowserPrintGlobal = typeof globalThis & {
   open?: (url?: string, target?: string) => PrintWindow | null;
+};
+
+type LocalInvoiceHistoryRecord = {
+  amount: number;
+  customerName: string;
+  dueDate: string;
+  id: string;
+  invoiceNumber: string;
+  issueDate: string;
+  projectName: string;
 };
 
 function getBrowserStorage() {
@@ -329,6 +341,8 @@ export default function InvoiceScreen() {
   const [isStorageLoaded, setIsStorageLoaded] = useState(false);
   const [exportStatus, setExportStatus] = useState('');
   const [historyStatus, setHistoryStatus] = useState('');
+  const [invoiceHistory, setInvoiceHistory] = useState<InvoiceRecord[]>([]);
+  const [localInvoiceHistory, setLocalInvoiceHistory] = useState<LocalInvoiceHistoryRecord[]>([]);
 
   useEffect(() => {
     const storage = getBrowserStorage();
@@ -418,6 +432,41 @@ export default function InvoiceScreen() {
     workDescription,
   ]);
 
+  useEffect(() => {
+    const storage = getBrowserStorage();
+    const currentHistory = storage?.getItem('ai-office-invoice-history');
+
+    if (currentHistory) {
+      try {
+        setLocalInvoiceHistory(JSON.parse(currentHistory) as LocalInvoiceHistoryRecord[]);
+      } catch {
+        setLocalInvoiceHistory([]);
+      }
+    }
+
+    let isMounted = true;
+
+    async function loadInvoiceHistory() {
+      try {
+        const records = await fetchInvoiceRecords();
+
+        if (isMounted) {
+          setInvoiceHistory(records);
+        }
+      } catch {
+        if (isMounted) {
+          setInvoiceHistory([]);
+        }
+      }
+    }
+
+    loadInvoiceHistory();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [historyStatus]);
+
   const calculation = useMemo(() => {
     const parsedHours = parseAmount(hours);
     const parsedHourlyRate = parseAmount(hourlyRate);
@@ -495,14 +544,16 @@ export default function InvoiceScreen() {
 
     const currentHistory = storage?.getItem(historyKey);
     const records = currentHistory ? (JSON.parse(currentHistory) as typeof record[]) : [];
-    storage?.setItem(historyKey, JSON.stringify([record, ...records]));
+    const nextRecords = [record, ...records];
+    storage?.setItem(historyKey, JSON.stringify(nextRecords));
+    setLocalInvoiceHistory(nextRecords);
   };
 
   const handleSaveInvoiceHistory = async () => {
     setHistoryStatus('請求書履歴を保存しています...');
 
     try {
-      await saveInvoiceRecord({
+      const savedInvoice = await saveInvoiceRecord({
         amount: calculation.amount,
         customerName,
         dueDate,
@@ -513,6 +564,10 @@ export default function InvoiceScreen() {
         projectName,
         workDescription,
       });
+      setInvoiceHistory((currentHistory) => [
+        savedInvoice,
+        ...currentHistory.filter((invoice) => invoice.id !== savedInvoice.id),
+      ]);
       setHistoryStatus('請求書履歴をDBに保存しました。');
     } catch (error) {
       try {
@@ -526,18 +581,24 @@ export default function InvoiceScreen() {
   };
 
   return (
-    <ScrollView
-      style={styles.screen}
-      contentContainerStyle={styles.container}
-      keyboardShouldPersistTaps="handled">
-      <View style={styles.content} lightColor="transparent" darkColor="transparent">
-        <View style={styles.header} lightColor="transparent" darkColor="transparent">
-          <Text style={styles.eyebrow}>請求書</Text>
-          <Text style={styles.title}>請求書作成</Text>
-          <Text style={styles.description}>見積内容を引き継いで請求書を作成できます。</Text>
-        </View>
+    <>
+      <SeoHead
+        title="請求書作成"
+        description="ブラウザで請求書番号、支払期限、請求内容を入力し、請求書PDFを作成できます。"
+        path="/invoice"
+      />
+      <ScrollView
+        style={styles.screen}
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled">
+        <View style={styles.content} lightColor="transparent" darkColor="transparent">
+          <View style={styles.header} lightColor="transparent" darkColor="transparent">
+            <Text style={styles.eyebrow}>請求書</Text>
+            <Text style={styles.title}>請求書作成</Text>
+            <Text style={styles.description}>見積内容を引き継いで請求書を作成できます。</Text>
+          </View>
 
-        <View style={styles.totalCard} lightColor="#111827" darkColor="#111827">
+          <View style={styles.totalCard} lightColor="#111827" darkColor="#111827">
           <Text style={styles.totalLabel} lightColor="#cbd5e1" darkColor="#cbd5e1">
             請求金額
           </Text>
@@ -568,9 +629,9 @@ export default function InvoiceScreen() {
               {exportStatus}
             </Text>
           ) : null}
-        </View>
+          </View>
 
-        <View style={styles.formCard}>
+          <View style={styles.formCard}>
           <View style={styles.cardHeader} lightColor="transparent" darkColor="transparent">
             <Text style={styles.cardTitle}>請求情報</Text>
             <Text style={styles.cardDescription}>請求書番号、発行日、支払期限を入力してください。</Text>
@@ -598,9 +659,9 @@ export default function InvoiceScreen() {
               keyboardType="numbers-and-punctuation"
             />
           </View>
-        </View>
+          </View>
 
-        <View style={styles.formCard}>
+          <View style={styles.formCard}>
           <View style={styles.cardHeader} lightColor="transparent" darkColor="transparent">
             <Text style={styles.cardTitle}>請求内容</Text>
             <Text style={styles.cardDescription}>見積から引き継いだ内容を必要に応じて調整できます。</Text>
@@ -644,9 +705,46 @@ export default function InvoiceScreen() {
               suffix="円"
             />
           </View>
+          </View>
+
+          <View style={styles.formCard}>
+            <View style={styles.cardHeader} lightColor="transparent" darkColor="transparent">
+              <Text style={styles.cardTitle}>請求書履歴</Text>
+              <Text style={styles.cardDescription}>
+                ログイン中はSupabaseへ保存した履歴、未ログイン時はブラウザ内に退避した履歴を表示します。
+              </Text>
+            </View>
+            {invoiceHistory.slice(0, 5).map((invoice) => (
+              <View key={invoice.id} style={styles.historyRow} lightColor="transparent" darkColor="transparent">
+                <View style={styles.historyBody} lightColor="transparent" darkColor="transparent">
+                  <Text style={styles.historyTitle}>{invoice.invoiceNumber}</Text>
+                  <Text style={styles.historySub}>
+                    {invoice.customerName} / 期限 {invoice.dueDate}
+                  </Text>
+                </View>
+                <Text style={styles.historyAmount}>{formatCurrency(invoice.amount)}</Text>
+              </View>
+            ))}
+            {invoiceHistory.length === 0
+              ? localInvoiceHistory.slice(0, 5).map((invoice) => (
+                  <View key={invoice.id} style={styles.historyRow} lightColor="transparent" darkColor="transparent">
+                    <View style={styles.historyBody} lightColor="transparent" darkColor="transparent">
+                      <Text style={styles.historyTitle}>{invoice.invoiceNumber}</Text>
+                      <Text style={styles.historySub}>
+                        {invoice.customerName} / 期限 {invoice.dueDate}
+                      </Text>
+                    </View>
+                    <Text style={styles.historyAmount}>{formatCurrency(invoice.amount)}</Text>
+                  </View>
+                ))
+              : null}
+            {invoiceHistory.length === 0 && localInvoiceHistory.length === 0 ? (
+              <Text style={styles.cardDescription}>まだ請求書履歴はありません。</Text>
+            ) : null}
+          </View>
         </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </>
   );
 }
 
@@ -853,6 +951,31 @@ const styles = StyleSheet.create({
   textArea: {
     minHeight: 84,
     textAlignVertical: 'top',
+  },
+  historyRow: {
+    alignItems: 'flex-start',
+    borderTopWidth: 1,
+    borderTopColor: '#eef2f7',
+    gap: 8,
+    paddingTop: 12,
+  },
+  historyBody: {
+    gap: 2,
+  },
+  historyTitle: {
+    color: '#111827',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  historySub: {
+    color: '#64748b',
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  historyAmount: {
+    color: '#2563eb',
+    fontSize: 14,
+    fontWeight: '800',
   },
   amountRow: {
     gap: 14,
