@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/components/useColorScheme';
+import { handleAuthCallbackUrl } from '@/lib/auth';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -34,6 +35,12 @@ export default function RootLayout() {
       SplashScreen.hideAsync();
     }
   }, [loaded]);
+
+  useEffect(() => {
+    handleAuthCallbackUrl().catch((callbackError) => {
+      console.warn('Supabase auth callback failed', callbackError);
+    });
+  }, []);
 
   if (!loaded) {
     return null;

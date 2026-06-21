@@ -77,8 +77,12 @@ SUPABASE_SERVICE_ROLE_KEY=
 
 ```text
 Site URL: https://app-002-ai-office.vercel.app
-Redirect URLs: https://app-002-ai-office.vercel.app
+Redirect URLs:
+https://app-002-ai-office.vercel.app
+https://app-002-ai-office.vercel.app/settings
 ```
+
+認証メールのリンクはアプリ側で `https://app-002-ai-office.vercel.app/settings` を `emailRedirectTo` に指定します。Supabase Dashboard 側の `Site URL` と `Redirect URLs` は、本番URLへ必ず変更してください。
 
 3. SQL Editorで [supabase/schema.sql](./supabase/schema.sql) を実行します。
 
