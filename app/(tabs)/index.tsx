@@ -49,10 +49,57 @@ const usageSteps = [
   '請求書番号、発行日、支払期限を入れて請求書PDFを作成します。',
 ];
 
+const useCases = [
+  {
+    title: 'Web制作フリーランス',
+    description: '初回相談後、その場で概算見積を作成。受注後は同じ内容から請求書へ進められます。',
+    result: '見積から請求までの転記を削減',
+  },
+  {
+    title: '業務委託エンジニア',
+    description: '月末の稼働時間と単価を入力して、請求書PDFと履歴をまとめて管理できます。',
+    result: '毎月の請求作業を短縮',
+  },
+  {
+    title: '個人事業主の継続案件',
+    description: '顧客情報と過去履歴を残し、同じ取引先への見積・請求をすばやく再作成できます。',
+    result: '継続案件の事務作業を標準化',
+  },
+];
+
+const faqItems = [
+  {
+    question: '無料プランだけで使えますか？',
+    answer: 'Freeは月3件まで利用できます。継続して見積書・請求書を作る場合はPro以上が向いています。',
+  },
+  {
+    question: 'Proにすると何が変わりますか？',
+    answer: '月980円で利用件数が無制限になり、顧客管理や履歴保存を日常業務として使いやすくなります。',
+  },
+  {
+    question: '個人事業主でも使えますか？',
+    answer: 'はい。屋号・個人名での案件管理、見積書作成、請求書作成、PDF出力をブラウザから利用できます。',
+  },
+  {
+    question: 'インストールは必要ですか？',
+    answer: '不要です。Webブラウザから利用できるため、Mac、Windows、タブレットでもすぐ開けます。',
+  },
+];
+
+const comparisonRows = [
+  { feature: '月間作成件数', free: '3件まで', pro: '無制限', business: '無制限' },
+  { feature: '見積書・請求書作成', free: '対応', pro: '対応', business: '対応' },
+  { feature: 'PDF出力', free: '対応', pro: '対応', business: '対応' },
+  { feature: '顧客管理', free: '体験のみ', pro: '対応', business: '対応' },
+  { feature: '履歴保存', free: '制限あり', pro: '無制限', business: '無制限' },
+  { feature: 'おすすめ対象', free: '試用', pro: '個人事業主', business: '小規模チーム' },
+];
+
 export default function HomeScreen() {
   const [contactName, setContactName] = useState('');
   const [contactEmail, setContactEmail] = useState('');
   const [contactMessage, setContactMessage] = useState('');
+  const proPlan = billingPlans.find((plan) => plan.key === 'pro');
   const contactUrl = useMemo(() => {
     const body = [
       `お名前: ${contactName}`,
@@ -77,34 +124,59 @@ export default function HomeScreen() {
   return (
     <>
       <SeoHead
-        title="フリーランス向け見積書・請求書作成アプリ"
-        description="AI Officeは、フリーランスや個人事業主がブラウザで見積書・請求書を作成し、PDF出力できる業務効率化Webアプリです。サンプル見積書とサンプル請求書をすぐ試せます。"
+        title="フリーランス向け見積書・請求書作成SaaS"
+        description="AI Officeは、フリーランス・個人事業主向けの見積書作成、請求書作成、PDF出力、顧客管理をまとめた月額SaaSです。Free月3件、Pro月980円から利用できます。"
       />
       <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
         <View style={styles.content} lightColor="transparent" darkColor="transparent">
           <View style={styles.hero} lightColor="transparent" darkColor="transparent">
-            <Text style={styles.eyebrow}>AI Office</Text>
-            <Text style={styles.title}>フリーランス向け見積書・請求書作成アプリ</Text>
-            <Text style={styles.description}>
-              見積作成、請求書作成、PDF出力、顧客管理をブラウザでまとめて扱える小規模事業者向けの業務ツールです。
-            </Text>
-            <View style={styles.ctaRow} lightColor="transparent" darkColor="transparent">
-              <Link
-                href={{
-                  pathname: '/estimate',
-                  params: sampleEstimateParams,
-                }}
-                style={styles.primaryLink}>
-                サンプル見積書を作成
-              </Link>
-              <Link
-                href={{
-                  pathname: '/invoice',
-                  params: sampleInvoiceParams,
-                }}
-                style={styles.secondaryLink}>
-                サンプル請求書を作成
-              </Link>
+            <View style={styles.heroCopy} lightColor="transparent" darkColor="transparent">
+              <Text style={styles.eyebrow}>Freelance billing SaaS</Text>
+              <Text style={styles.title}>見積書と請求書を、月末に慌てず作れるAI Office</Text>
+              <Text style={styles.description}>
+                フリーランス・個人事業主のための見積書作成、請求書作成、PDF出力、顧客管理をブラウザに集約。Freeで試して、継続案件はPro月980円で無制限に使えます。
+              </Text>
+              <View style={styles.ctaRow} lightColor="transparent" darkColor="transparent">
+                <Pressable
+                  style={styles.primaryButton}
+                  onPress={() => {
+                    if (proPlan?.paymentLink) {
+                      handleOpenPaymentLink(proPlan.paymentLink);
+                    }
+                  }}>
+                  <Text style={styles.primaryButtonText} lightColor="#ffffff" darkColor="#ffffff">
+                    Proを980円で始める
+                  </Text>
+                </Pressable>
+                <Link
+                  href={{
+                    pathname: '/estimate',
+                    params: sampleEstimateParams,
+                  }}
+                  style={styles.secondaryLink}>
+                  サンプル見積書を作成
+                </Link>
+              </View>
+              <Text style={styles.microCopy}>Freeは月3件まで。クレジットカード決済はStripeで安全に処理されます。</Text>
+            </View>
+            <View style={styles.heroPreview}>
+              <Text style={styles.previewLabel}>今月の業務</Text>
+              <View style={styles.previewRow} lightColor="transparent" darkColor="transparent">
+                <Text style={styles.previewTitle}>コーポレートサイト制作</Text>
+                <Text style={styles.previewAmount}>192,000円</Text>
+              </View>
+              <View style={styles.previewDivider} />
+              <View style={styles.previewMetrics} lightColor="transparent" darkColor="transparent">
+                <View style={styles.previewMetric} lightColor="transparent" darkColor="transparent">
+                  <Text style={styles.previewMetricValue}>2 / 3</Text>
+                  <Text style={styles.previewMetricLabel}>Free利用</Text>
+                </View>
+                <View style={styles.previewMetric} lightColor="transparent" darkColor="transparent">
+                  <Text style={styles.previewMetricValue}>PDF</Text>
+                  <Text style={styles.previewMetricLabel}>即出力</Text>
+                </View>
+              </View>
+              <Text style={styles.previewNote}>Proなら作成件数は無制限</Text>
             </View>
           </View>
 
@@ -163,30 +235,88 @@ export default function HomeScreen() {
 
           <View style={styles.panel}>
             <View style={styles.panelHeader} lightColor="transparent" darkColor="transparent">
-              <Text style={styles.panelTitle}>月額プラン</Text>
-              <Text style={styles.panelMeta}>月300万円を目標に、Freeから有料プランへアップグレードできる構成です。</Text>
+              <Text style={styles.panelTitle}>料金比較</Text>
+              <Text style={styles.panelMeta}>まずFreeで試し、毎月使うならPro月980円で件数制限を外せます。</Text>
             </View>
-            {billingPlans.map((plan) => (
-              <View key={plan.key} style={styles.planRow} lightColor="transparent" darkColor="transparent">
-                <View style={styles.rowBody} lightColor="transparent" darkColor="transparent">
-                  <Text style={styles.rowTitle}>
-                    {plan.title} / 月額{plan.monthlyPrice}
-                  </Text>
+            <View style={styles.planCards} lightColor="transparent" darkColor="transparent">
+              {billingPlans.map((plan) => (
+                <View
+                  key={plan.key}
+                  style={[styles.planCard, plan.key === 'pro' ? styles.recommendedPlan : undefined]}
+                  lightColor="transparent"
+                  darkColor="transparent">
+                  <Text style={styles.planName}>{plan.title}</Text>
+                  <Text style={styles.planPrice}>月額{plan.monthlyPrice}</Text>
                   <Text style={styles.rowSub}>{plan.description}</Text>
+                  <View style={styles.featureList} lightColor="transparent" darkColor="transparent">
+                    {plan.features.map((feature) => (
+                      <Text key={feature} style={styles.planFeature}>
+                        ✓ {feature}
+                      </Text>
+                    ))}
+                  </View>
+                  {plan.paymentLink ? (
+                    <Pressable style={styles.planButton} onPress={() => handleOpenPaymentLink(plan.paymentLink!)}>
+                      <Text style={styles.planButtonText} lightColor="#ffffff" darkColor="#ffffff">
+                        {plan.key === 'pro' ? '980円で始める' : '2,980円で始める'}
+                      </Text>
+                    </Pressable>
+                  ) : (
+                    <Link
+                      href={{
+                        pathname: '/estimate',
+                        params: sampleEstimateParams,
+                      }}
+                      style={styles.secondaryLink}>
+                      無料で試す
+                    </Link>
+                  )}
                 </View>
-                <Text style={styles.status}>{plan.key === 'free' ? '体験' : 'Stripe対応'}</Text>
-                {plan.paymentLink ? (
-                  <Pressable style={styles.planButton} onPress={() => handleOpenPaymentLink(plan.paymentLink!)}>
-                    <Text style={styles.planButtonText} lightColor="#ffffff" darkColor="#ffffff">
-                      {plan.key === 'pro' ? '980円で始める' : '2,980円で始める'}
-                    </Text>
-                  </Pressable>
-                ) : null}
+              ))}
+            </View>
+            <View style={styles.comparisonTable} lightColor="transparent" darkColor="transparent">
+              <View style={styles.comparisonHeader} lightColor="transparent" darkColor="transparent">
+                <Text style={styles.comparisonFeature}>機能</Text>
+                <Text style={styles.comparisonCell}>Free</Text>
+                <Text style={styles.comparisonCell}>Pro</Text>
+                <Text style={styles.comparisonCell}>Business</Text>
+              </View>
+              {comparisonRows.map((row) => (
+                <View key={row.feature} style={styles.comparisonRow} lightColor="transparent" darkColor="transparent">
+                  <Text style={styles.comparisonFeature}>{row.feature}</Text>
+                  <Text style={styles.comparisonCell}>{row.free}</Text>
+                  <Text style={styles.comparisonCell}>{row.pro}</Text>
+                  <Text style={styles.comparisonCell}>{row.business}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.panel}>
+            <View style={styles.panelHeader} lightColor="transparent" darkColor="transparent">
+              <Text style={styles.panelTitle}>利用事例</Text>
+              <Text style={styles.panelMeta}>案件単位で見積・請求・顧客をまとめたい個人事業主に向いています。</Text>
+            </View>
+            {useCases.map((useCase) => (
+              <View key={useCase.title} style={styles.useCaseCard} lightColor="transparent" darkColor="transparent">
+                <Text style={styles.rowTitle}>{useCase.title}</Text>
+                <Text style={styles.rowSub}>{useCase.description}</Text>
+                <Text style={styles.status}>{useCase.result}</Text>
               </View>
             ))}
-            <Link href="/settings" style={styles.primaryLink}>
-              ログイン・料金管理へ
-            </Link>
+          </View>
+
+          <View style={styles.panel}>
+            <View style={styles.panelHeader} lightColor="transparent" darkColor="transparent">
+              <Text style={styles.panelTitle}>よくある質問</Text>
+              <Text style={styles.panelMeta}>導入前に確認されやすい料金、制限、使い方をまとめました。</Text>
+            </View>
+            {faqItems.map((item) => (
+              <View key={item.question} style={styles.faqItem} lightColor="transparent" darkColor="transparent">
+                <Text style={styles.faqQuestion}>Q. {item.question}</Text>
+                <Text style={styles.faqAnswer}>A. {item.answer}</Text>
+              </View>
+            ))}
           </View>
 
           <View style={styles.panel}>
@@ -304,12 +434,19 @@ const styles = StyleSheet.create({
   },
   content: {
     width: '100%',
-    maxWidth: 600,
+    maxWidth: 760,
     gap: 14,
   },
   hero: {
+    borderWidth: 1,
+    borderColor: '#dbe7ff',
+    borderRadius: 8,
+    backgroundColor: '#ffffff',
+    gap: 18,
+    padding: 18,
+  },
+  heroCopy: {
     gap: 12,
-    paddingBottom: 6,
   },
   eyebrow: {
     color: '#2563eb',
@@ -320,8 +457,9 @@ const styles = StyleSheet.create({
   },
   title: {
     color: '#111827',
-    fontSize: 28,
+    fontSize: 30,
     fontWeight: '800',
+    lineHeight: 38,
   },
   description: {
     color: '#64748b',
@@ -330,6 +468,17 @@ const styles = StyleSheet.create({
   },
   ctaRow: {
     gap: 10,
+  },
+  primaryButton: {
+    alignItems: 'center',
+    borderRadius: 8,
+    backgroundColor: '#2563eb',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  primaryButtonText: {
+    fontSize: 15,
+    fontWeight: '800',
   },
   primaryLink: {
     overflow: 'hidden',
@@ -341,6 +490,68 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     textAlign: 'center',
+  },
+  microCopy: {
+    color: '#64748b',
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 18,
+  },
+  heroPreview: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+    backgroundColor: '#f8fafc',
+    gap: 12,
+    padding: 16,
+  },
+  previewLabel: {
+    color: '#2563eb',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  previewRow: {
+    gap: 4,
+  },
+  previewTitle: {
+    color: '#111827',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  previewAmount: {
+    color: '#111827',
+    fontSize: 30,
+    fontWeight: '900',
+  },
+  previewDivider: {
+    height: 1,
+    backgroundColor: '#e5e7eb',
+  },
+  previewMetrics: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  previewMetric: {
+    flex: 1,
+    borderRadius: 8,
+    backgroundColor: '#ffffff',
+    padding: 12,
+  },
+  previewMetricValue: {
+    color: '#111827',
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  previewMetricLabel: {
+    color: '#64748b',
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  previewNote: {
+    color: '#2563eb',
+    fontSize: 13,
+    fontWeight: '800',
   },
   secondaryLink: {
     overflow: 'hidden',
@@ -460,6 +671,39 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingTop: 12,
   },
+  planCards: {
+    gap: 10,
+  },
+  planCard: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+    backgroundColor: '#ffffff',
+    gap: 8,
+    padding: 14,
+  },
+  recommendedPlan: {
+    borderColor: '#2563eb',
+    backgroundColor: '#eff6ff',
+  },
+  planName: {
+    color: '#111827',
+    fontSize: 17,
+    fontWeight: '900',
+  },
+  planPrice: {
+    color: '#111827',
+    fontSize: 24,
+    fontWeight: '900',
+  },
+  featureList: {
+    gap: 5,
+  },
+  planFeature: {
+    color: '#374151',
+    fontSize: 13,
+    fontWeight: '700',
+  },
   planButton: {
     alignItems: 'center',
     borderRadius: 8,
@@ -496,6 +740,59 @@ const styles = StyleSheet.create({
     color: '#2563eb',
     fontSize: 12,
     fontWeight: '800',
+  },
+  comparisonTable: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  comparisonHeader: {
+    flexDirection: 'row',
+    backgroundColor: '#f8fafc',
+  },
+  comparisonRow: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+  },
+  comparisonFeature: {
+    flex: 1.2,
+    color: '#111827',
+    fontSize: 12,
+    fontWeight: '800',
+    paddingHorizontal: 8,
+    paddingVertical: 10,
+  },
+  comparisonCell: {
+    flex: 1,
+    color: '#374151',
+    fontSize: 12,
+    fontWeight: '700',
+    paddingHorizontal: 6,
+    paddingVertical: 10,
+  },
+  useCaseCard: {
+    borderTopWidth: 1,
+    borderTopColor: '#eef2f7',
+    gap: 5,
+    paddingTop: 12,
+  },
+  faqItem: {
+    borderTopWidth: 1,
+    borderTopColor: '#eef2f7',
+    gap: 5,
+    paddingTop: 12,
+  },
+  faqQuestion: {
+    color: '#111827',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  faqAnswer: {
+    color: '#64748b',
+    fontSize: 13,
+    lineHeight: 19,
   },
   field: {
     gap: 6,
