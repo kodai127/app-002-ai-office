@@ -66,7 +66,7 @@ function isMissingCustomerNameColumn(error: unknown) {
   const supabaseError = error as { code?: string; message?: string };
 
   return (
-    supabaseError.code === '42703' &&
+    (supabaseError.code === '42703' || supabaseError.code === 'PGRST204') &&
     Boolean(supabaseError.message?.includes('customer_name'))
   );
 }
