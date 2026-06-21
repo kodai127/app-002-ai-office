@@ -562,7 +562,7 @@ export default function HomeScreen() {
           <View style={styles.linkPanel}>
             <Text style={styles.panelTitle}>関連リンク</Text>
             <View style={styles.externalLinks} lightColor="transparent" darkColor="transparent">
-              <Link href="https://x.com/kodai127" target="_blank" style={styles.externalLink}>
+              <Link href="https://x.com/dai_k65852" target="_blank" style={styles.externalLink}>
                 Xアカウント
               </Link>
               <Link href="https://github.com/kodai127/app-002-ai-office" target="_blank" style={styles.externalLink}>
