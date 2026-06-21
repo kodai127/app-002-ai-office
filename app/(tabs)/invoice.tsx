@@ -5,6 +5,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 
+import { AppHeader } from '@/components/AppHeader';
 import { SeoHead } from '@/components/SeoHead';
 import { Text, View } from '@/components/Themed';
 import { UsageLimitPanel } from '@/components/UsageLimitPanel';
@@ -596,6 +597,7 @@ export default function InvoiceScreen() {
         style={styles.screen}
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled">
+        <AppHeader />
         <View style={styles.content} lightColor="transparent" darkColor="transparent">
           <View style={styles.header} lightColor="transparent" darkColor="transparent">
             <Text style={styles.eyebrow}>請求書</Text>

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, TextInput } from 'react-native';
 import { Link } from 'expo-router';
 
+import { AppHeader } from '@/components/AppHeader';
 import { Text, View } from '@/components/Themed';
 import { SeoHead } from '@/components/SeoHead';
 import { billingPlans } from '@/lib/billing';
@@ -128,6 +129,7 @@ export default function HomeScreen() {
         description="AI Officeは、個人事業主・フリーランス向けのAI請求書・見積書作成SaaSです。インボイス対応、PDF出力、顧客管理、履歴保存を月額980円から利用できます。"
       />
       <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
+        <AppHeader />
         <View style={styles.content} lightColor="transparent" darkColor="transparent">
           <View style={styles.hero} lightColor="transparent" darkColor="transparent">
             <View style={styles.heroCopy} lightColor="transparent" darkColor="transparent">

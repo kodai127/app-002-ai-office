@@ -51,6 +51,77 @@ export async function sendLoginLink(email: string) {
   }
 }
 
+export async function signUpWithEmailPassword(email: string, password: string) {
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error('Supabase環境変数が未設定です。');
+  }
+
+  if (!email || !email.includes('@')) {
+    throw new Error('有効なメールアドレスを入力してください。');
+  }
+
+  if (password.length < 6) {
+    throw new Error('パスワードは6文字以上で入力してください。');
+  }
+
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      emailRedirectTo: getAuthRedirectUrl(),
+    },
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data.user;
+}
+
+export async function signInWithEmailPassword(email: string, password: string) {
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error('Supabase環境変数が未設定です。');
+  }
+
+  if (!email || !email.includes('@')) {
+    throw new Error('有効なメールアドレスを入力してください。');
+  }
+
+  if (!password) {
+    throw new Error('パスワードを入力してください。');
+  }
+
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data.user;
+}
+
+export async function sendPasswordResetEmail(email: string) {
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error('Supabase環境変数が未設定です。');
+  }
+
+  if (!email || !email.includes('@')) {
+    throw new Error('有効なメールアドレスを入力してください。');
+  }
+
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: getAuthRedirectUrl(),
+  });
+
+  if (error) {
+    throw error;
+  }
+}
+
 export async function signOut() {
   if (!isSupabaseConfigured || !supabase) {
     return;

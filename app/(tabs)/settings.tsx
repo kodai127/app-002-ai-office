@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, TextInput } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
+import { User } from '@supabase/supabase-js';
 
+import { AppHeader } from '@/components/AppHeader';
 import { AuthPanel } from '@/components/AuthPanel';
 import { SeoHead } from '@/components/SeoHead';
 import { Text, View } from '@/components/Themed';
 import { UsageLimitPanel } from '@/components/UsageLimitPanel';
+import { getCurrentUser } from '@/lib/auth';
 import { billingPlans, openBillingLink } from '@/lib/billing';
 import {
   Customer,
@@ -20,21 +23,48 @@ import {
 import { getSupabaseSetupMessage } from '@/lib/supabaseClient';
 import {
   createCustomerDraft,
+  BillingProfile,
   fetchOrCreateProfile,
   fetchCustomers,
   fetchEstimateRecords,
   fetchInvoiceRecords,
+  fetchUsageSummary,
+  UsageSummary,
   upsertCustomer,
 } from '@/lib/supabaseRepositories';
 
-type TabKey = 'customers' | 'estimates' | 'invoices' | 'billing' | 'supabase';
+type TabKey = 'dashboard' | 'customers' | 'estimates' | 'invoices' | 'billing' | 'mypage' | 'supabase';
+
+const pricingComparisonRows = [
+  { feature: '月間利用回数', free: '月3回', pro: '無制限', business: '無制限' },
+  { feature: '見積書作成', free: '対応', pro: '対応', business: '対応' },
+  { feature: '請求書作成', free: '対応', pro: '対応', business: '対応' },
+  { feature: 'PDF出力', free: '対応', pro: '対応', business: '対応' },
+  { feature: '顧客管理', free: '制限あり', pro: '対応', business: '対応' },
+  { feature: '履歴保存', free: '制限あり', pro: '対応', business: '対応' },
+];
+
+function getPlanLabel(plan?: string) {
+  if (plan === 'business') {
+    return 'Business';
+  }
+
+  if (plan === 'pro') {
+    return 'Pro';
+  }
+
+  return 'Free';
+}
 
 export default function SettingsScreen() {
-  const params = useLocalSearchParams<{ checkout?: string }>();
-  const [activeTab, setActiveTab] = useState<TabKey>('customers');
+  const params = useLocalSearchParams<{ checkout?: string; tab?: string }>();
+  const [activeTab, setActiveTab] = useState<TabKey>('dashboard');
   const [customers, setCustomers] = useState<Customer[]>(mockCustomers);
   const [estimateRecords, setEstimateRecords] = useState<EstimateRecord[]>(mockEstimateRecords);
   const [invoiceRecords, setInvoiceRecords] = useState<InvoiceRecord[]>(mockInvoiceRecords);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<BillingProfile | null>(null);
+  const [usageSummary, setUsageSummary] = useState<UsageSummary | null>(null);
   const [editingCustomerId, setEditingCustomerId] = useState(customers[0]?.id ?? '');
   const [billingStatus, setBillingStatus] = useState('Freeプラン: ローカル保存とPDF出力を試せます。');
   const [syncStatus, setSyncStatus] = useState(getSupabaseSetupMessage());
@@ -56,10 +86,25 @@ export default function SettingsScreen() {
 
     async function loadDbRecords() {
       try {
-        const [dbCustomers, dbEstimates, dbInvoices] = await Promise.all([
+        const [authUser, usage] = await Promise.all([getCurrentUser(), fetchUsageSummary()]);
+
+        if (!isMounted) {
+          return;
+        }
+
+        setCurrentUser(authUser);
+        setUsageSummary(usage);
+
+        if (!authUser) {
+          setSyncStatus('ログインすると顧客・見積履歴・請求書履歴をクラウド保存できます。');
+          return;
+        }
+
+        const [dbCustomers, dbEstimates, dbInvoices, nextProfile] = await Promise.all([
           fetchCustomers(),
           fetchEstimateRecords(),
           fetchInvoiceRecords(),
+          fetchOrCreateProfile(),
         ]);
 
         if (!isMounted) {
@@ -72,8 +117,8 @@ export default function SettingsScreen() {
         }
         setEstimateRecords(dbEstimates.length > 0 ? dbEstimates : mockEstimateRecords);
         setInvoiceRecords(dbInvoices.length > 0 ? dbInvoices : mockInvoiceRecords);
-        const profile = await fetchOrCreateProfile();
-        setBillingStatus(`${profile.plan.toUpperCase()}プラン / 状態: ${profile.subscriptionStatus}`);
+        setProfile(nextProfile);
+        setBillingStatus(`${getPlanLabel(nextProfile.plan)}プラン / 状態: ${nextProfile.subscriptionStatus}`);
         setSyncStatus('Supabaseから顧客・見積履歴・請求書履歴を読み込みました。');
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Supabaseの読み込みに失敗しました。';
@@ -87,6 +132,15 @@ export default function SettingsScreen() {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    const nextTab = params.tab as TabKey | undefined;
+    const validTabs: TabKey[] = ['dashboard', 'customers', 'estimates', 'invoices', 'billing', 'mypage', 'supabase'];
+
+    if (nextTab && validTabs.includes(nextTab)) {
+      setActiveTab(nextTab);
+    }
+  }, [params.tab]);
 
   useEffect(() => {
     if (params.checkout === 'success') {
@@ -190,6 +244,7 @@ export default function SettingsScreen() {
         path="/settings"
       />
       <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
+        <AppHeader />
         <View style={styles.content} lightColor="transparent" darkColor="transparent">
           <View style={styles.header} lightColor="transparent" darkColor="transparent">
             <Text style={styles.eyebrow}>Workspace</Text>
@@ -200,16 +255,59 @@ export default function SettingsScreen() {
             <Text style={styles.syncStatus}>{syncStatus}</Text>
           </View>
 
-          <AuthPanel />
           <UsageLimitPanel refreshKey={billingStatus} />
 
           <View style={styles.segmented} lightColor="transparent" darkColor="transparent">
-          <SegmentButton active={activeTab === 'customers'} label="顧客" onPress={() => setActiveTab('customers')} />
-          <SegmentButton active={activeTab === 'estimates'} label="見積" onPress={() => setActiveTab('estimates')} />
-          <SegmentButton active={activeTab === 'invoices'} label="請求" onPress={() => setActiveTab('invoices')} />
-          <SegmentButton active={activeTab === 'billing'} label="料金" onPress={() => setActiveTab('billing')} />
-          <SegmentButton active={activeTab === 'supabase'} label="DB設計" onPress={() => setActiveTab('supabase')} />
+            <SegmentButton active={activeTab === 'dashboard'} label="ダッシュボード" onPress={() => setActiveTab('dashboard')} />
+            <SegmentButton active={activeTab === 'customers'} label="顧客" onPress={() => setActiveTab('customers')} />
+            <SegmentButton active={activeTab === 'estimates'} label="見積" onPress={() => setActiveTab('estimates')} />
+            <SegmentButton active={activeTab === 'invoices'} label="請求" onPress={() => setActiveTab('invoices')} />
+            <SegmentButton active={activeTab === 'billing'} label="料金" onPress={() => setActiveTab('billing')} />
+            <SegmentButton active={activeTab === 'mypage'} label="マイページ" onPress={() => setActiveTab('mypage')} />
+            <SegmentButton active={activeTab === 'supabase'} label="DB設計" onPress={() => setActiveTab('supabase')} />
           </View>
+
+          {activeTab === 'dashboard' ? (
+            <View style={styles.panel}>
+              <View style={styles.panelHeader} lightColor="transparent" darkColor="transparent">
+                <View lightColor="transparent" darkColor="transparent">
+                  <Text style={styles.panelTitle}>ダッシュボード</Text>
+                  <Text style={styles.panelMeta}>現在の利用状況、保存件数、プラン状態をまとめて確認できます。</Text>
+                </View>
+              </View>
+              <View style={styles.metricGrid} lightColor="transparent" darkColor="transparent">
+                <MetricCard
+                  label="現在プラン"
+                  note={profile?.subscriptionStatus ?? usageSummary?.subscriptionStatus ?? '未ログイン'}
+                  value={getPlanLabel(profile?.plan ?? usageSummary?.plan)}
+                />
+                <MetricCard
+                  label="今月利用数"
+                  note={usageSummary?.limit === null ? 'Pro/Businessは無制限' : 'Freeは月3回まで無料'}
+                  value={`${usageSummary?.used ?? 0}件`}
+                />
+                <MetricCard
+                  label="残り利用回数"
+                  note="見積書・請求書のクラウド保存"
+                  value={usageSummary?.remaining === null ? '無制限' : `${usageSummary?.remaining ?? 3}回`}
+                />
+                <MetricCard label="見積件数" note="保存済み見積書" value={`${estimateRecords.length}件`} />
+                <MetricCard label="請求件数" note="保存済み請求書" value={`${invoiceRecords.length}件`} />
+                <MetricCard label="顧客数" note="管理中の顧客" value={`${customers.length}社`} />
+              </View>
+              {usageSummary?.remaining === 0 ? (
+                <View style={styles.upgradeBox}>
+                  <Text style={styles.rowTitle}>無料枠を使い切りました</Text>
+                  <Text style={styles.rowSub}>Proなら月額980円で見積書・請求書を無制限に保存できます。</Text>
+                  <Pressable style={styles.primaryButton} onPress={() => handleOpenBilling('pro')}>
+                    <Text style={styles.primaryButtonText} lightColor="#ffffff" darkColor="#ffffff">
+                      Proで無制限利用
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
 
           {activeTab === 'customers' ? (
           <>
@@ -361,8 +459,9 @@ export default function SettingsScreen() {
             {billingPlans.map((plan) => (
               <View key={plan.key} style={styles.planCard}>
                 <View style={styles.rowBody} lightColor="transparent" darkColor="transparent">
-                  <Text style={styles.rowTitle}>
-                    {plan.title} / 月額{plan.monthlyPrice}
+                  <Text style={styles.rowTitle}>{plan.title}</Text>
+                  <Text style={styles.planPrice}>
+                    {plan.key === 'free' ? '月3回まで無料' : plan.key === 'pro' ? '980円/月' : '2980円/月'}
                   </Text>
                   <Text style={styles.rowSub}>{plan.description}</Text>
                 </View>
@@ -385,6 +484,50 @@ export default function SettingsScreen() {
                 </Pressable>
               </View>
             ))}
+            <View style={styles.comparisonTable}>
+              <View style={styles.comparisonHeader} lightColor="transparent" darkColor="transparent">
+                <Text style={styles.comparisonFeature}>機能</Text>
+                <Text style={styles.comparisonCell}>Free</Text>
+                <Text style={styles.comparisonCell}>Pro</Text>
+                <Text style={styles.comparisonCell}>Business</Text>
+              </View>
+              {pricingComparisonRows.map((row) => (
+                <View key={row.feature} style={styles.comparisonRow} lightColor="transparent" darkColor="transparent">
+                  <Text style={styles.comparisonFeature}>{row.feature}</Text>
+                  <Text style={styles.comparisonCell}>{row.free}</Text>
+                  <Text style={styles.comparisonCell}>{row.pro}</Text>
+                  <Text style={styles.comparisonCell}>{row.business}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+          ) : null}
+
+          {activeTab === 'mypage' ? (
+          <View style={styles.panel}>
+            <View style={styles.panelHeader} lightColor="transparent" darkColor="transparent">
+              <View lightColor="transparent" darkColor="transparent">
+                <Text style={styles.panelTitle}>マイページ</Text>
+                <Text style={styles.panelMeta}>アカウント情報、現在プラン、Stripe決済ページを確認できます。</Text>
+              </View>
+            </View>
+            <View style={styles.profileList}>
+              <ProfileRow label="メールアドレス" value={currentUser?.email ?? '未ログイン'} />
+              <ProfileRow label="登録日" value={currentUser?.created_at ? currentUser.created_at.slice(0, 10) : '未ログイン'} />
+              <ProfileRow label="現在プラン" value={getPlanLabel(profile?.plan ?? usageSummary?.plan)} />
+            </View>
+            <View style={styles.upgradeBox}>
+              <Text style={styles.rowTitle}>Stripe管理リンク</Text>
+              <Text style={styles.rowSub}>現在はStripe Payment Linkに接続しています。プラン変更や有料登録に利用します。</Text>
+              <Pressable
+                style={styles.primaryButton}
+                onPress={() => handleOpenBilling(profile?.plan === 'business' ? 'business' : 'pro')}>
+                <Text style={styles.primaryButtonText} lightColor="#ffffff" darkColor="#ffffff">
+                  Stripe決済ページを開く
+                </Text>
+              </Pressable>
+            </View>
+            <AuthPanel />
           </View>
           ) : null}
 
@@ -422,6 +565,25 @@ function SegmentButton({ active, label, onPress }: { active: boolean; label: str
     <Pressable style={[styles.segmentButton, active ? styles.segmentButtonActive : undefined]} onPress={onPress}>
       <Text style={[styles.segmentText, active ? styles.segmentTextActive : undefined]}>{label}</Text>
     </Pressable>
+  );
+}
+
+function MetricCard({ label, note, value }: { label: string; note: string; value: string }) {
+  return (
+    <View style={styles.metricCard}>
+      <Text style={styles.metricLabel}>{label}</Text>
+      <Text style={styles.metricValue}>{value}</Text>
+      <Text style={styles.metricNote}>{note}</Text>
+    </View>
+  );
+}
+
+function ProfileRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.profileRow} lightColor="transparent" darkColor="transparent">
+      <Text style={styles.profileLabel}>{label}</Text>
+      <Text style={styles.profileValue}>{value}</Text>
+    </View>
   );
 }
 
@@ -535,6 +697,40 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
   },
+  metricGrid: {
+    gap: 10,
+  },
+  metricCard: {
+    borderWidth: 1,
+    borderColor: '#eef2f7',
+    borderRadius: 8,
+    padding: 12,
+    backgroundColor: '#f8fafc',
+    gap: 5,
+  },
+  metricLabel: {
+    color: '#64748b',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  metricValue: {
+    color: '#111827',
+    fontSize: 24,
+    fontWeight: '900',
+  },
+  metricNote: {
+    color: '#64748b',
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  upgradeBox: {
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+    borderRadius: 8,
+    padding: 12,
+    backgroundColor: '#eff6ff',
+    gap: 9,
+  },
   primaryButton: {
     alignSelf: 'flex-start',
     backgroundColor: '#2563eb',
@@ -636,10 +832,71 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     gap: 9,
   },
+  planPrice: {
+    color: '#111827',
+    fontSize: 22,
+    fontWeight: '900',
+  },
   planFeature: {
     color: '#475569',
     fontSize: 13,
     lineHeight: 18,
+  },
+  comparisonTable: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  comparisonHeader: {
+    backgroundColor: '#f8fafc',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+    flexDirection: 'row',
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+  },
+  comparisonRow: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#eef2f7',
+    flexDirection: 'row',
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+  },
+  comparisonFeature: {
+    color: '#111827',
+    flex: 1.25,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  comparisonCell: {
+    color: '#475569',
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  profileList: {
+    borderWidth: 1,
+    borderColor: '#eef2f7',
+    borderRadius: 8,
+    backgroundColor: '#ffffff',
+  },
+  profileRow: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#eef2f7',
+    gap: 4,
+    padding: 12,
+  },
+  profileLabel: {
+    color: '#64748b',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  profileValue: {
+    color: '#111827',
+    fontSize: 14,
+    fontWeight: '800',
   },
   schemaCard: {
     borderWidth: 1,

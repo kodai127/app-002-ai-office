@@ -5,8 +5,10 @@ import { User } from '@supabase/supabase-js';
 import {
   consumeAuthCallbackMessage,
   getCurrentUser,
-  sendLoginLink,
+  sendPasswordResetEmail,
+  signInWithEmailPassword,
   signOut,
+  signUpWithEmailPassword,
   subscribeToAuthState,
 } from '@/lib/auth';
 import { isSupabaseConfigured } from '@/lib/supabaseClient';
@@ -14,6 +16,7 @@ import { Text, View } from './Themed';
 
 export function AuthPanel() {
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [status, setStatus] = useState('');
   const [statusType, setStatusType] = useState<'error' | 'info' | 'success'>('info');
   const [user, setUser] = useState<User | null>(null);
@@ -52,25 +55,85 @@ export function AuthPanel() {
     };
   }, []);
 
-  const handleLogin = async () => {
+  const validateCredentials = () => {
     const trimmedEmail = email.trim();
 
     if (!trimmedEmail) {
       setStatus('メールアドレスを入力してください。');
       setStatusType('error');
+      return null;
+    }
+
+    if (!password) {
+      setStatus('パスワードを入力してください。');
+      setStatusType('error');
+      return null;
+    }
+
+    return { email: trimmedEmail, password };
+  };
+
+  const handleSignUp = async () => {
+    const credentials = validateCredentials();
+
+    if (!credentials) {
       return;
     }
 
-    setStatus('ログインリンクを送信しています...');
+    setStatus('新規登録しています...');
     setStatusType('info');
 
     try {
-      await sendLoginLink(trimmedEmail);
-      setStatus('ログインリンクを送信しました。メール内のリンクを開くとログインが完了します。');
+      await signUpWithEmailPassword(credentials.email, credentials.password);
+      setStatus('新規登録しました。確認メールが届いた場合はメール内のリンクを開いてください。');
       setStatusType('success');
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'ログインリンクの送信に失敗しました。';
-      setStatus(`ログインリンクを送信できませんでした。${message}`);
+      const message = error instanceof Error ? error.message : '新規登録に失敗しました。';
+      setStatus(`新規登録できませんでした。${message}`);
+      setStatusType('error');
+    }
+  };
+
+  const handleLogin = async () => {
+    const credentials = validateCredentials();
+
+    if (!credentials) {
+      return;
+    }
+
+    setStatus('ログインしています...');
+    setStatusType('info');
+
+    try {
+      await signInWithEmailPassword(credentials.email, credentials.password);
+      setStatus('ログインしました。ログイン状態はブラウザに保持されます。');
+      setStatusType('success');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'ログインに失敗しました。';
+      setStatus(`ログインできませんでした。${message}`);
+      setStatusType('error');
+    }
+  };
+
+  const handlePasswordReset = async () => {
+    const trimmedEmail = email.trim();
+
+    if (!trimmedEmail) {
+      setStatus('パスワードリセット用のメールアドレスを入力してください。');
+      setStatusType('error');
+      return;
+    }
+
+    setStatus('パスワードリセットメールを送信しています...');
+    setStatusType('info');
+
+    try {
+      await sendPasswordResetEmail(trimmedEmail);
+      setStatus('パスワードリセットメールを送信しました。メールを確認してください。');
+      setStatusType('success');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'パスワードリセットに失敗しました。';
+      setStatus(`パスワードリセットメールを送信できませんでした。${message}`);
       setStatusType('error');
     }
   };
@@ -94,7 +157,7 @@ export function AuthPanel() {
     <View style={styles.panel}>
       <Text style={styles.title}>ログイン</Text>
       <Text style={styles.description}>
-        顧客管理、請求書履歴、クラウド保存を使うにはメールリンクでログインしてください。
+        顧客管理、請求書履歴、クラウド保存を使うにはメールアドレスとパスワードでログインしてください。
       </Text>
       {!isSupabaseConfigured ? (
         <Text style={styles.errorStatus}>Supabase環境変数が未設定です。Free体験のみ利用できます。</Text>
@@ -116,10 +179,27 @@ export function AuthPanel() {
             keyboardType="email-address"
             autoCapitalize="none"
           />
-          <Pressable style={styles.primaryButton} onPress={handleLogin}>
-            <Text style={styles.primaryButtonText} lightColor="#ffffff" darkColor="#ffffff">
-              ログインリンクを送信
-            </Text>
+          <TextInput
+            style={styles.input}
+            value={password}
+            onChangeText={setPassword}
+            placeholder="パスワード"
+            placeholderTextColor="#9ca3af"
+            secureTextEntry
+            autoCapitalize="none"
+          />
+          <View style={styles.actionRow} lightColor="transparent" darkColor="transparent">
+            <Pressable style={styles.primaryButton} onPress={handleLogin}>
+              <Text style={styles.primaryButtonText} lightColor="#ffffff" darkColor="#ffffff">
+                ログイン
+              </Text>
+            </Pressable>
+            <Pressable style={styles.secondaryButton} onPress={handleSignUp}>
+              <Text style={styles.secondaryButtonText}>新規登録</Text>
+            </Pressable>
+          </View>
+          <Pressable style={styles.linkButton} onPress={handlePasswordReset}>
+            <Text style={styles.linkButtonText}>パスワードをリセット</Text>
           </Pressable>
         </>
       )}
@@ -189,6 +269,20 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
   },
   secondaryButtonText: {
+    color: '#2563eb',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  actionRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  linkButton: {
+    alignSelf: 'flex-start',
+    paddingVertical: 4,
+  },
+  linkButtonText: {
     color: '#2563eb',
     fontSize: 13,
     fontWeight: '800',
