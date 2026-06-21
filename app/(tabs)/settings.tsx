@@ -657,13 +657,17 @@ const styles = StyleSheet.create({
   segmented: {
     backgroundColor: '#e9eef6',
     borderRadius: 8,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 6,
     padding: 4,
   },
   segmentButton: {
     alignItems: 'center',
     borderRadius: 6,
+    flexGrow: 1,
     paddingVertical: 10,
+    paddingHorizontal: 10,
   },
   segmentButtonActive: {
     backgroundColor: '#ffffff',
@@ -698,6 +702,8 @@ const styles = StyleSheet.create({
     lineHeight: 19,
   },
   metricGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 10,
   },
   metricCard: {
@@ -706,6 +712,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 12,
     backgroundColor: '#f8fafc',
+    flexBasis: 170,
+    flexGrow: 1,
     gap: 5,
   },
   metricLabel: {
