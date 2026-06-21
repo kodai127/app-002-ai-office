@@ -10,6 +10,7 @@ import {
   deleteProjectRecord,
   fetchCustomers,
   fetchProjectRecords,
+  formatSupabaseError,
   summarizeProjects,
   updateProjectStatus,
   upsertProject,
@@ -41,6 +42,7 @@ const statusColors: Record<ProjectStatus, { backgroundColor: string; color: stri
 const initialForm = {
   amount: '',
   customerId: '',
+  customerName: '',
   dueDate: new Date().toISOString().slice(0, 10),
   id: '',
   memo: '',
@@ -74,11 +76,13 @@ export default function ProjectsScreen() {
       setForm((currentForm) => ({
         ...currentForm,
         customerId: currentForm.customerId || nextCustomers[0]?.id || '',
+        customerName: currentForm.customerName || nextCustomers[0]?.name || '',
       }));
       setStatusMessage(nextProjects.length > 0 ? 'Supabaseから案件を読み込みました。' : 'まだ案件はありません。');
     } catch (error) {
-      const message = error instanceof Error ? error.message : '案件の読み込みに失敗しました。';
-      setStatusMessage(message);
+      const message = formatSupabaseError(error);
+      console.error('案件読み込みエラー', error);
+      setStatusMessage(`案件の読み込みに失敗しました。${message}`);
       setProjects([]);
     } finally {
       setIsLoading(false);
@@ -89,6 +93,7 @@ export default function ProjectsScreen() {
     setForm({
       ...initialForm,
       customerId: customers[0]?.id ?? '',
+      customerName: customers[0]?.name ?? '',
     });
   };
 
@@ -117,6 +122,7 @@ export default function ProjectsScreen() {
       const savedProject = await upsertProject({
         amount,
         customerId: form.customerId,
+        customerName: form.customerName,
         dueDate: form.dueDate,
         id: form.id || undefined,
         memo: form.memo,
@@ -134,10 +140,14 @@ export default function ProjectsScreen() {
         return [savedProject, ...currentProjects];
       });
       resetForm();
-      setStatusMessage('案件をSupabaseに保存しました。');
+      setStatusMessage('案件を保存しました');
     } catch (error) {
-      const message = error instanceof Error ? error.message : '案件の保存に失敗しました。';
-      setStatusMessage(message);
+      const message = formatSupabaseError(error);
+      console.error('案件保存エラー', {
+        error,
+        form,
+      });
+      setStatusMessage(`案件の保存に失敗しました。${message}`);
     } finally {
       setIsSaving(false);
     }
@@ -147,6 +157,7 @@ export default function ProjectsScreen() {
     setForm({
       amount: String(project.amount),
       customerId: project.customerId,
+      customerName: project.customerName,
       dueDate: project.dueDate,
       id: project.id,
       memo: project.memo,
@@ -166,8 +177,12 @@ export default function ProjectsScreen() {
       );
       setStatusMessage('案件を入金済みにしました。');
     } catch (error) {
-      const message = error instanceof Error ? error.message : '入金済みへの更新に失敗しました。';
-      setStatusMessage(message);
+      const message = formatSupabaseError(error);
+      console.error('案件ステータス更新エラー', {
+        error,
+        projectId,
+      });
+      setStatusMessage(`入金済みへの更新に失敗しました。${message}`);
     }
   };
 
@@ -184,8 +199,12 @@ export default function ProjectsScreen() {
       setDeleteTarget(null);
       setStatusMessage('案件を削除しました。');
     } catch (error) {
-      const message = error instanceof Error ? error.message : '案件の削除に失敗しました。';
-      setStatusMessage(message);
+      const message = formatSupabaseError(error);
+      console.error('案件削除エラー', {
+        deleteTarget,
+        error,
+      });
+      setStatusMessage(`案件の削除に失敗しました。${message}`);
     }
   };
 
@@ -233,7 +252,7 @@ export default function ProjectsScreen() {
                   <Pressable
                     key={customer.id}
                     style={[styles.customerChip, form.customerId === customer.id ? styles.customerChipActive : undefined]}
-                    onPress={() => setForm({ ...form, customerId: customer.id })}>
+                    onPress={() => setForm({ ...form, customerId: customer.id, customerName: customer.name })}>
                     <Text style={[styles.customerChipText, form.customerId === customer.id ? styles.customerChipTextActive : undefined]}>
                       {customer.name}
                     </Text>
@@ -243,6 +262,17 @@ export default function ProjectsScreen() {
                 <Text style={styles.emptyText}>顧客が未登録です。顧客なしでも案件保存できます。</Text>
               )}
             </View>
+            <Pressable
+              style={styles.secondaryButton}
+              onPress={() => setForm({ ...form, customerId: '', customerName: '' })}>
+              <Text style={styles.secondaryButtonText}>顧客選択を解除</Text>
+            </Pressable>
+            <Field
+              label="顧客名"
+              value={form.customerName}
+              onChangeText={(value) => setForm({ ...form, customerId: '', customerName: value })}
+              placeholder="株式会社サンプル / 個人名"
+            />
             <Field
               label="金額"
               value={form.amount}

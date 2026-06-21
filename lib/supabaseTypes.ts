@@ -77,6 +77,7 @@ export type Database = {
           id: string;
           user_id: string;
           customer_id: string | null;
+          customer_name: string;
           name: string;
           amount: number;
           status: 'draft' | 'estimated' | 'invoiced' | 'paid';
@@ -89,6 +90,7 @@ export type Database = {
           id?: string;
           user_id: string;
           customer_id?: string | null;
+          customer_name?: string;
           name: string;
           amount?: number;
           status?: 'draft' | 'estimated' | 'invoiced' | 'paid';
@@ -101,6 +103,7 @@ export type Database = {
           id?: string;
           user_id?: string;
           customer_id?: string | null;
+          customer_name?: string;
           name?: string;
           amount?: number;
           status?: 'draft' | 'estimated' | 'invoiced' | 'paid';

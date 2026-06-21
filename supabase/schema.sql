@@ -40,6 +40,7 @@ create table if not exists public.projects (
   id text primary key,
   user_id uuid not null references auth.users(id) on delete cascade,
   customer_id text references public.customers(id) on delete set null,
+  customer_name text not null default '顧客未設定',
   name text not null,
   amount numeric not null default 0,
   status text not null default 'draft' check (status in ('draft', 'estimated', 'invoiced', 'paid')),
@@ -78,6 +79,9 @@ alter table public.estimates
 
 alter table public.projects
   add column if not exists user_id uuid references auth.users(id) on delete cascade;
+
+alter table public.projects
+  add column if not exists customer_name text not null default '顧客未設定';
 
 alter table public.invoices
   add column if not exists user_id uuid references auth.users(id) on delete cascade;

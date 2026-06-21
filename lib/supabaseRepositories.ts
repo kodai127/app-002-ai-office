@@ -21,6 +21,41 @@ function toNullable(value: string | undefined) {
   return value?.trim() ? value.trim() : null;
 }
 
+export function formatSupabaseError(error: unknown) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (error && typeof error === 'object') {
+    const supabaseError = error as {
+      code?: string;
+      details?: string | null;
+      hint?: string | null;
+      message?: string;
+    };
+    const parts = [
+      supabaseError.code ? `code: ${supabaseError.code}` : '',
+      supabaseError.message ? `message: ${supabaseError.message}` : '',
+      supabaseError.details ? `details: ${supabaseError.details}` : '',
+      supabaseError.hint ? `hint: ${supabaseError.hint}` : '',
+    ].filter(Boolean);
+
+    if (parts.length > 0) {
+      return parts.join(' / ');
+    }
+  }
+
+  return '不明なエラーが発生しました。';
+}
+
+function throwSupabaseError(context: string, error: unknown, payload?: unknown): never {
+  console.error(context, {
+    error,
+    payload,
+  });
+  throw new Error(`${context}: ${formatSupabaseError(error)}`);
+}
+
 async function requireUserId() {
   const user = await getCurrentUser();
 
@@ -308,7 +343,7 @@ export function mapProjectRow(row: ProjectRow, customerName = '顧客未設定')
   return {
     id: row.id,
     customerId: row.customer_id ?? '',
-    customerName,
+    customerName: row.customer_name || customerName,
     name: row.name,
     amount: row.amount,
     status: row.status,
@@ -324,7 +359,7 @@ type ProjectRowWithCustomer = ProjectRow & {
 };
 
 function mapProjectRowWithCustomer(row: ProjectRowWithCustomer): ProjectRecord {
-  return mapProjectRow(row, row.customers?.name ?? '顧客未設定');
+  return mapProjectRow(row, row.customer_name || row.customers?.name || '顧客未設定');
 }
 
 export async function fetchCustomers() {
@@ -353,7 +388,7 @@ export async function fetchProjectRecords() {
     .order('updated_at', { ascending: false });
 
   if (error) {
-    throw error;
+    throwSupabaseError('案件一覧の取得に失敗しました', error);
   }
 
   return (data as ProjectRowWithCustomer[]).map(mapProjectRowWithCustomer);
@@ -362,6 +397,7 @@ export async function fetchProjectRecords() {
 export async function upsertProject(record: {
   amount: number;
   customerId: string;
+  customerName: string;
   dueDate: string;
   id?: string;
   memo: string;
@@ -371,28 +407,28 @@ export async function upsertProject(record: {
   const client = assertSupabase();
   const userId = await requireUserId();
   const now = new Date().toISOString();
+  const payload = {
+    id: record.id || createId('prj'),
+    user_id: userId,
+    customer_id: toNullable(record.customerId),
+    customer_name: record.customerName.trim() || '顧客未設定',
+    name: record.name || '新規案件',
+    amount: Number.isFinite(record.amount) ? record.amount : 0,
+    status: record.status ?? 'draft',
+    memo: toNullable(record.memo),
+    due_date: record.dueDate || new Date().toISOString().slice(0, 10),
+    updated_at: now,
+    ...(record.id ? {} : { created_at: now }),
+  };
+
   const { data, error } = await client
     .from('projects')
-    .upsert(
-      {
-        id: record.id || createId('prj'),
-        user_id: userId,
-        customer_id: toNullable(record.customerId),
-        name: record.name || '新規案件',
-        amount: Number.isFinite(record.amount) ? record.amount : 0,
-        status: record.status ?? 'draft',
-        memo: toNullable(record.memo),
-        due_date: record.dueDate || new Date().toISOString().slice(0, 10),
-        created_at: record.id ? undefined : now,
-        updated_at: now,
-      },
-      { onConflict: 'id' }
-    )
+    .upsert(payload, { onConflict: 'id' })
     .select('*, customers(name)')
     .single();
 
   if (error) {
-    throw error;
+    throwSupabaseError('案件の保存に失敗しました', error, payload);
   }
 
   return mapProjectRowWithCustomer(data as ProjectRowWithCustomer);
@@ -413,7 +449,7 @@ export async function updateProjectStatus(projectId: string, status: ProjectStat
     .single();
 
   if (error) {
-    throw error;
+    throwSupabaseError('案件ステータスの更新に失敗しました', error, { projectId, status, userId });
   }
 
   return mapProjectRowWithCustomer(data as ProjectRowWithCustomer);
@@ -425,7 +461,7 @@ export async function deleteProjectRecord(projectId: string) {
   const { error } = await client.from('projects').delete().eq('id', projectId).eq('user_id', userId);
 
   if (error) {
-    throw error;
+    throwSupabaseError('案件の削除に失敗しました', error, { projectId, userId });
   }
 }
 
