@@ -56,6 +56,19 @@ function throwSupabaseError(context: string, error: unknown, payload?: unknown):
   throw new Error(`${context}: ${formatSupabaseError(error)}`);
 }
 
+function isMissingCustomerNameColumn(error: unknown) {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  const supabaseError = error as { code?: string; message?: string };
+
+  return (
+    supabaseError.code === '42703' &&
+    Boolean(supabaseError.message?.includes('customer_name'))
+  );
+}
+
 async function requireUserId() {
   const user = await getCurrentUser();
 
@@ -428,6 +441,30 @@ export async function upsertProject(record: {
     .single();
 
   if (error) {
+    if (isMissingCustomerNameColumn(error)) {
+      const { customer_name: _customerName, ...fallbackPayload } = payload;
+
+      console.error('projects.customer_name列が未適用のため、顧客名なしで案件保存を再試行します', {
+        error,
+        payload,
+      });
+
+      const { data: fallbackData, error: fallbackError } = await client
+        .from('projects')
+        .upsert(fallbackPayload, { onConflict: 'id' })
+        .select('*, customers(name)')
+        .single();
+
+      if (fallbackError) {
+        throwSupabaseError('案件の保存に失敗しました', fallbackError, fallbackPayload);
+      }
+
+      return {
+        ...mapProjectRowWithCustomer(fallbackData as ProjectRowWithCustomer),
+        customerName: record.customerName.trim() || '顧客未設定',
+      };
+    }
+
     throwSupabaseError('案件の保存に失敗しました', error, payload);
   }
 
