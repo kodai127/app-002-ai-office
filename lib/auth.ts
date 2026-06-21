@@ -35,6 +35,10 @@ export async function sendLoginLink(email: string) {
     throw new Error('Supabase環境変数が未設定です。');
   }
 
+  if (!email || !email.includes('@')) {
+    throw new Error('有効なメールアドレスを入力してください。');
+  }
+
   const { error } = await supabase.auth.signInWithOtp({
     email,
     options: {
@@ -89,9 +93,34 @@ export async function handleAuthCallbackUrl() {
   const { error } = await supabase.auth.exchangeCodeForSession(code);
 
   if (error) {
+    window.sessionStorage.setItem('ai-office-auth-status', 'error');
+    window.sessionStorage.setItem('ai-office-auth-message', error.message);
     throw error;
   }
 
+  window.sessionStorage.setItem('ai-office-auth-status', 'success');
+  window.sessionStorage.setItem('ai-office-auth-message', 'ログインしました。引き続きAI Officeを利用できます。');
   url.searchParams.delete('code');
   window.history.replaceState({}, document.title, `${url.pathname}${url.search}${url.hash}`);
+}
+
+export function consumeAuthCallbackMessage(): { message: string; type: 'error' | 'success' } | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  const status = window.sessionStorage.getItem('ai-office-auth-status');
+  const message = window.sessionStorage.getItem('ai-office-auth-message');
+
+  window.sessionStorage.removeItem('ai-office-auth-status');
+  window.sessionStorage.removeItem('ai-office-auth-message');
+
+  if (!message) {
+    return null;
+  }
+
+  return {
+    message,
+    type: status === 'error' ? 'error' : 'success',
+  };
 }

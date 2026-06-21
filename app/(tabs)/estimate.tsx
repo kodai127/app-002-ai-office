@@ -445,10 +445,12 @@ export default function EstimateScreen() {
       setUsageRefreshKey((currentKey) => currentKey + 1);
       setHistoryStatus('見積履歴をDBに保存しました。');
     } catch (error) {
+      setUsageRefreshKey((currentKey) => currentKey + 1);
       try {
         saveEstimateHistoryLocally();
         const message = error instanceof Error ? error.message : 'Supabase保存に失敗しました。';
-        setHistoryStatus(`${message} ローカルに退避しました。`);
+        const upgradeMessage = message.includes('月3回') ? ' Proで無制限利用できます。' : '';
+        setHistoryStatus(`${message}${upgradeMessage} ローカルに退避しました。`);
       } catch {
         setHistoryStatus('見積履歴の保存に失敗しました。');
       }

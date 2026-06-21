@@ -23,11 +23,15 @@ function getUsageLabel(summary: UsageSummary | null) {
 
 function getRemainingLabel(summary: UsageSummary | null) {
   if (!summary) {
-    return '';
+    return '月3回まで無料';
   }
 
   if (summary.limit === null) {
     return 'Pro/Businessは無制限で利用できます。';
+  }
+
+  if ((summary.remaining ?? 0) <= 0) {
+    return '残り0回。Freeの今月分は上限に達しました。';
   }
 
   if (!summary.isLoggedIn) {
@@ -42,6 +46,7 @@ export function UsageLimitPanel({ refreshKey }: UsageLimitPanelProps) {
   const [summary, setSummary] = useState<UsageSummary | null>(null);
   const proPlan = billingPlans.find((plan) => plan.key === 'pro');
   const isFree = summary?.limit !== null;
+  const isLocked = isFree && summary ? (summary.remaining ?? 0) <= 0 : false;
 
   useEffect(() => {
     let isMounted = true;
@@ -87,7 +92,7 @@ export function UsageLimitPanel({ refreshKey }: UsageLimitPanelProps) {
   };
 
   return (
-    <View style={styles.panel}>
+    <View style={[styles.panel, isLocked ? styles.lockedPanel : undefined]}>
       <View style={styles.header} lightColor="transparent" darkColor="transparent">
         <View lightColor="transparent" darkColor="transparent">
           <Text style={styles.title}>今月利用</Text>
@@ -97,11 +102,17 @@ export function UsageLimitPanel({ refreshKey }: UsageLimitPanelProps) {
           {summary?.plan === 'business' ? 'Business' : summary?.plan === 'pro' ? 'Pro' : 'Free'}
         </Text>
       </View>
+      {isFree ? <Text style={styles.freeLimit}>月3回まで無料</Text> : null}
       <Text style={styles.description}>{getRemainingLabel(summary)}</Text>
+      {isLocked ? (
+        <Text style={styles.lockedText}>
+          今月の無料利用枠を使い切りました。Proにすると見積書・請求書を無制限で作成できます。
+        </Text>
+      ) : null}
       {isFree ? (
         <Pressable style={styles.upgradeButton} onPress={handleUpgrade}>
           <Text style={styles.upgradeButtonText} lightColor="#ffffff" darkColor="#ffffff">
-            Proにアップグレード
+            Proで無制限利用
           </Text>
         </Pressable>
       ) : null}
@@ -118,6 +129,10 @@ const styles = StyleSheet.create({
     padding: 16,
     backgroundColor: '#eff6ff',
     gap: 10,
+  },
+  lockedPanel: {
+    borderColor: '#fecaca',
+    backgroundColor: '#fff1f2',
   },
   header: {
     alignItems: 'flex-start',
@@ -148,6 +163,17 @@ const styles = StyleSheet.create({
     color: '#1e40af',
     fontSize: 14,
     fontWeight: '800',
+  },
+  freeLimit: {
+    color: '#1e40af',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  lockedText: {
+    color: '#b91c1c',
+    fontSize: 13,
+    fontWeight: '800',
+    lineHeight: 19,
   },
   upgradeButton: {
     alignItems: 'center',

@@ -69,20 +69,20 @@ const useCases = [
 
 const faqItems = [
   {
-    question: '無料プランだけで使えますか？',
-    answer: 'Freeは月3件まで利用できます。継続して見積書・請求書を作る場合はPro以上が向いています。',
+    question: '無料で使えますか？',
+    answer: '月3回まで無料です',
   },
   {
-    question: 'Proにすると何が変わりますか？',
-    answer: '月980円で利用件数が無制限になり、顧客管理や履歴保存を日常業務として使いやすくなります。',
+    question: 'インボイス対応ですか？',
+    answer: '対応しています',
   },
   {
-    question: '個人事業主でも使えますか？',
-    answer: 'はい。屋号・個人名での案件管理、見積書作成、請求書作成、PDF出力をブラウザから利用できます。',
+    question: 'PDF出力できますか？',
+    answer: 'できます',
   },
   {
-    question: 'インストールは必要ですか？',
-    answer: '不要です。Webブラウザから利用できるため、Mac、Windows、タブレットでもすぐ開けます。',
+    question: '解約できますか？',
+    answer: 'いつでも可能です',
   },
 ];
 
@@ -124,19 +124,35 @@ export default function HomeScreen() {
   return (
     <>
       <SeoHead
-        title="フリーランス向け見積書・請求書作成SaaS"
-        description="AI Officeは、フリーランス・個人事業主向けの見積書作成、請求書作成、PDF出力、顧客管理をまとめた月額SaaSです。Free月3件、Pro月980円から利用できます。"
+        title="AI請求書・見積書作成"
+        description="AI Officeは、個人事業主・フリーランス向けのAI請求書・見積書作成SaaSです。インボイス対応、PDF出力、顧客管理、履歴保存を月額980円から利用できます。"
       />
       <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
         <View style={styles.content} lightColor="transparent" darkColor="transparent">
           <View style={styles.hero} lightColor="transparent" darkColor="transparent">
             <View style={styles.heroCopy} lightColor="transparent" darkColor="transparent">
-              <Text style={styles.eyebrow}>Freelance billing SaaS</Text>
-              <Text style={styles.title}>見積書と請求書を、月末に慌てず作れるAI Office</Text>
+              <Text style={styles.eyebrow}>個人事業主・フリーランス向け</Text>
+              <Text style={styles.title}>AI請求書・見積書作成</Text>
               <Text style={styles.description}>
-                フリーランス・個人事業主のための見積書作成、請求書作成、PDF出力、顧客管理をブラウザに集約。Freeで試して、継続案件はPro月980円で無制限に使えます。
+                インボイス対応、PDF出力、顧客管理、履歴保存をブラウザに集約。月3回まで無料で試せて、Proなら月額980円で無制限に使えます。
               </Text>
+              <View style={styles.heroFeatures} lightColor="transparent" darkColor="transparent">
+                {['インボイス対応', 'PDF出力', '顧客管理', '履歴保存'].map((feature) => (
+                  <Text key={feature} style={styles.heroFeature}>
+                    {feature}
+                  </Text>
+                ))}
+              </View>
+              <Text style={styles.heroPrice}>月額980円</Text>
               <View style={styles.ctaRow} lightColor="transparent" darkColor="transparent">
+                <Link
+                  href={{
+                    pathname: '/estimate',
+                    params: sampleEstimateParams,
+                  }}
+                  style={styles.secondaryLink}>
+                  無料で試す
+                </Link>
                 <Pressable
                   style={styles.primaryButton}
                   onPress={() => {
@@ -145,17 +161,9 @@ export default function HomeScreen() {
                     }
                   }}>
                   <Text style={styles.primaryButtonText} lightColor="#ffffff" darkColor="#ffffff">
-                    Proを980円で始める
+                    980円で始める
                   </Text>
                 </Pressable>
-                <Link
-                  href={{
-                    pathname: '/estimate',
-                    params: sampleEstimateParams,
-                  }}
-                  style={styles.secondaryLink}>
-                  サンプル見積書を作成
-                </Link>
               </View>
               <Text style={styles.microCopy}>Freeは月3件まで。クレジットカード決済はStripeで安全に処理されます。</Text>
             </View>
@@ -465,6 +473,26 @@ const styles = StyleSheet.create({
     color: '#64748b',
     fontSize: 15,
     lineHeight: 22,
+  },
+  heroFeatures: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  heroFeature: {
+    overflow: 'hidden',
+    borderRadius: 999,
+    backgroundColor: '#eff6ff',
+    color: '#1d4ed8',
+    fontSize: 12,
+    fontWeight: '900',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  heroPrice: {
+    color: '#111827',
+    fontSize: 24,
+    fontWeight: '900',
   },
   ctaRow: {
     gap: 10,

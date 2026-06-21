@@ -2,25 +2,49 @@ import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, TextInput } from 'react-native';
 import { User } from '@supabase/supabase-js';
 
-import { getCurrentUser, sendLoginLink, signOut, subscribeToAuthState } from '@/lib/auth';
+import {
+  consumeAuthCallbackMessage,
+  getCurrentUser,
+  sendLoginLink,
+  signOut,
+  subscribeToAuthState,
+} from '@/lib/auth';
 import { isSupabaseConfigured } from '@/lib/supabaseClient';
 import { Text, View } from './Themed';
 
 export function AuthPanel() {
   const [email, setEmail] = useState('');
   const [status, setStatus] = useState('');
+  const [statusType, setStatusType] = useState<'error' | 'info' | 'success'>('info');
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
     let isMounted = true;
+    const callbackMessage = consumeAuthCallbackMessage();
+
+    if (callbackMessage) {
+      setStatus(callbackMessage.message);
+      setStatusType(callbackMessage.type);
+    }
 
     getCurrentUser().then((currentUser) => {
       if (isMounted) {
         setUser(currentUser);
+        if (currentUser && !callbackMessage) {
+          setStatus('ログイン状態を保持しています。');
+          setStatusType('success');
+        }
       }
     });
 
-    const unsubscribe = subscribeToAuthState(setUser);
+    const unsubscribe = subscribeToAuthState((currentUser) => {
+      setUser(currentUser);
+
+      if (currentUser) {
+        setStatus('ログインしました。ログイン状態はブラウザに保持されます。');
+        setStatusType('success');
+      }
+    });
 
     return () => {
       isMounted = false;
@@ -29,26 +53,40 @@ export function AuthPanel() {
   }, []);
 
   const handleLogin = async () => {
+    const trimmedEmail = email.trim();
+
+    if (!trimmedEmail) {
+      setStatus('メールアドレスを入力してください。');
+      setStatusType('error');
+      return;
+    }
+
     setStatus('ログインリンクを送信しています...');
+    setStatusType('info');
 
     try {
-      await sendLoginLink(email.trim());
-      setStatus('ログインリンクを送信しました。メールを確認してください。');
+      await sendLoginLink(trimmedEmail);
+      setStatus('ログインリンクを送信しました。メール内のリンクを開くとログインが完了します。');
+      setStatusType('success');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'ログインリンクの送信に失敗しました。';
-      setStatus(message);
+      setStatus(`ログインリンクを送信できませんでした。${message}`);
+      setStatusType('error');
     }
   };
 
   const handleSignOut = async () => {
     setStatus('ログアウトしています...');
+    setStatusType('info');
 
     try {
       await signOut();
       setStatus('ログアウトしました。');
+      setStatusType('success');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'ログアウトに失敗しました。';
       setStatus(message);
+      setStatusType('error');
     }
   };
 
@@ -59,10 +97,10 @@ export function AuthPanel() {
         顧客管理、請求書履歴、クラウド保存を使うにはメールリンクでログインしてください。
       </Text>
       {!isSupabaseConfigured ? (
-        <Text style={styles.status}>Supabase環境変数が未設定です。Free体験のみ利用できます。</Text>
+        <Text style={styles.errorStatus}>Supabase環境変数が未設定です。Free体験のみ利用できます。</Text>
       ) : user ? (
         <>
-          <Text style={styles.status}>ログイン中: {user.email ?? user.id}</Text>
+          <Text style={styles.successStatus}>ログイン中: {user.email ?? user.id}</Text>
           <Pressable style={styles.secondaryButton} onPress={handleSignOut}>
             <Text style={styles.secondaryButtonText}>ログアウト</Text>
           </Pressable>
@@ -85,7 +123,18 @@ export function AuthPanel() {
           </Pressable>
         </>
       )}
-      {status ? <Text style={styles.status}>{status}</Text> : null}
+      {status ? (
+        <Text
+          style={
+            statusType === 'error'
+              ? styles.errorStatus
+              : statusType === 'success'
+                ? styles.successStatus
+                : styles.status
+          }>
+          {status}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -148,6 +197,18 @@ const styles = StyleSheet.create({
     color: '#2563eb',
     fontSize: 12,
     fontWeight: '700',
+    lineHeight: 18,
+  },
+  successStatus: {
+    color: '#047857',
+    fontSize: 12,
+    fontWeight: '800',
+    lineHeight: 18,
+  },
+  errorStatus: {
+    color: '#b91c1c',
+    fontSize: 12,
+    fontWeight: '800',
     lineHeight: 18,
   },
 });
