@@ -76,3 +76,30 @@ export async function openBillingLink(plan: BillingPlan) {
 
   await Linking.openURL(payload.url);
 }
+
+export async function openCustomerPortal() {
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error('サブスク管理にはSupabaseログイン設定が必要です。');
+  }
+
+  const { data, error } = await supabase.auth.getSession();
+
+  if (error || !data.session?.access_token) {
+    throw new Error('サブスク管理にはログインが必要です。');
+  }
+
+  const response = await fetch('/api/create-customer-portal-session', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${data.session.access_token}`,
+      'Content-Type': 'application/json',
+    },
+  });
+  const payload = (await response.json()) as { error?: string; url?: string };
+
+  if (!response.ok || !payload.url) {
+    throw new Error(payload.error ?? 'Customer Portalを開始できませんでした。');
+  }
+
+  await Linking.openURL(payload.url);
+}

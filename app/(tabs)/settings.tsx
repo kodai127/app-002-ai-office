@@ -9,7 +9,7 @@ import { SeoHead } from '@/components/SeoHead';
 import { Text, View } from '@/components/Themed';
 import { UsageLimitPanel } from '@/components/UsageLimitPanel';
 import { getCurrentUser } from '@/lib/auth';
-import { billingPlans, openBillingLink } from '@/lib/billing';
+import { billingPlans, openBillingLink, openCustomerPortal } from '@/lib/billing';
 import {
   Customer,
   EstimateRecord,
@@ -67,6 +67,7 @@ export default function SettingsScreen() {
   const [usageSummary, setUsageSummary] = useState<UsageSummary | null>(null);
   const [editingCustomerId, setEditingCustomerId] = useState(customers[0]?.id ?? '');
   const [billingStatus, setBillingStatus] = useState('Freeプラン: ローカル保存とPDF出力を試せます。');
+  const [portalStatus, setPortalStatus] = useState('');
   const [syncStatus, setSyncStatus] = useState(getSupabaseSetupMessage());
   const editingCustomer = customers.find((customer) => customer.id === editingCustomerId) ?? customers[0];
   const customerForm = useMemo(
@@ -192,6 +193,18 @@ export default function SettingsScreen() {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Stripe決済ページを開けませんでした。';
       setBillingStatus(message);
+    }
+  };
+
+  const handleOpenCustomerPortal = async () => {
+    setPortalStatus('Stripe Customer Portalを開いています...');
+
+    try {
+      await openCustomerPortal();
+      setPortalStatus('Stripe Customer Portalを開きました。');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Customer Portalを開けませんでした。';
+      setPortalStatus(message);
     }
   };
 
@@ -515,18 +528,22 @@ export default function SettingsScreen() {
               <ProfileRow label="メールアドレス" value={currentUser?.email ?? '未ログイン'} />
               <ProfileRow label="登録日" value={currentUser?.created_at ? currentUser.created_at.slice(0, 10) : '未ログイン'} />
               <ProfileRow label="現在プラン" value={getPlanLabel(profile?.plan ?? usageSummary?.plan)} />
+              <ProfileRow label="Stripe Customer" value={profile?.stripeCustomerId || '未連携'} />
             </View>
-            <View style={styles.upgradeBox}>
-              <Text style={styles.rowTitle}>Stripe管理リンク</Text>
-              <Text style={styles.rowSub}>現在はStripe Payment Linkに接続しています。プラン変更や有料登録に利用します。</Text>
-              <Pressable
-                style={styles.primaryButton}
-                onPress={() => handleOpenBilling(profile?.plan === 'business' ? 'business' : 'pro')}>
-                <Text style={styles.primaryButtonText} lightColor="#ffffff" darkColor="#ffffff">
-                  Stripe決済ページを開く
+            {profile?.plan === 'pro' || profile?.plan === 'business' ? (
+              <View style={styles.upgradeBox}>
+                <Text style={styles.rowTitle}>サブスク管理</Text>
+                <Text style={styles.rowSub}>
+                  Stripe Customer Portalでプラン確認、支払い方法変更、サブスク解約を行えます。
                 </Text>
-              </Pressable>
-            </View>
+                <Pressable style={styles.primaryButton} onPress={handleOpenCustomerPortal}>
+                  <Text style={styles.primaryButtonText} lightColor="#ffffff" darkColor="#ffffff">
+                    サブスク管理
+                  </Text>
+                </Pressable>
+                {portalStatus ? <Text style={styles.syncStatus}>{portalStatus}</Text> : null}
+              </View>
+            ) : null}
             <AuthPanel />
           </View>
           ) : null}
