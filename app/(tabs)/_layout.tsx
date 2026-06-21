@@ -45,9 +45,43 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="projects"
+        options={{
+          title: '案件',
+          tabBarIcon: ({ color }) => (
+            <SymbolView
+              name={{
+                ios: 'briefcase',
+                android: 'work',
+                web: 'work',
+              }}
+              tintColor={color}
+              size={28}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="customers"
+        options={{
+          title: '顧客',
+          tabBarIcon: ({ color }) => (
+            <SymbolView
+              name={{
+                ios: 'person.2',
+                android: 'people',
+                web: 'people',
+              }}
+              tintColor={color}
+              size={28}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="estimate"
         options={{
-          title: 'AI見積書',
+          title: '見積',
           tabBarLabel: '見積',
           tabBarIcon: ({ color }) => (
             <SymbolView

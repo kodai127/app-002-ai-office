@@ -10,10 +10,13 @@ import { billingPlans } from '@/lib/billing';
 import { getCurrentUser } from '@/lib/auth';
 import {
   formatCurrency,
+  getProjectStatusLabel,
+  isOverdue,
   isThisMonth,
   mockCustomers,
   mockEstimateRecords,
   mockInvoiceRecords,
+  mockProjectRecords,
 } from '@/lib/officeData';
 import {
   BillingProfile,
@@ -24,12 +27,15 @@ import {
   UsageSummary,
 } from '@/lib/supabaseRepositories';
 
-const monthlyEstimateCount = mockEstimateRecords.filter((estimate) =>
-  isThisMonth(estimate.issuedAt)
-).length;
-const monthlyInvoiceAmount = mockInvoiceRecords
-  .filter((invoice) => isThisMonth(invoice.issuedAt))
-  .reduce((total, invoice) => total + invoice.amount, 0);
+const monthlyProjectRevenue = mockProjectRecords
+  .filter((project) => project.status === 'paid' && isThisMonth(project.updatedAt))
+  .reduce((total, project) => total + project.amount, 0);
+const outstandingProjectAmount = mockProjectRecords
+  .filter((project) => project.status === 'invoiced')
+  .reduce((total, project) => total + project.amount, 0);
+const activeProjectCount = mockProjectRecords.filter((project) => project.status !== 'paid').length;
+const invoicedProjectCount = mockProjectRecords.filter((project) => project.status === 'invoiced').length;
+const paidProjectCount = mockProjectRecords.filter((project) => project.status === 'paid').length;
 
 const sampleEstimateParams = {
   customerName: '株式会社サンプル',
@@ -39,42 +45,35 @@ const sampleEstimateParams = {
   workDescription: '要件整理、デザイン調整、Webサイト実装、公開作業',
 };
 
-const sampleInvoiceParams = {
-  ...sampleEstimateParams,
-  dueDate: '2026-07-31',
-  invoiceNumber: 'INV-20260620-001',
-  issueDate: '2026-06-20',
-};
-
 const appFeatures = [
-  '見積金額を工数と単価から自動計算',
-  '見積書と請求書をブラウザで作成',
-  'PDF出力と履歴保存に対応',
-  '顧客管理と請求状況をまとめて確認',
+  '案件ごとに見積・請求・入金ステータスを管理',
+  '未入金と期限超過をスマホで確認',
+  '見積書・請求書のPDF出力に対応',
+  '顧客管理と請求履歴をまとめて確認',
 ];
 
 const usageSteps = [
-  '顧客名、案件名、作業内容を入力します。',
-  '工数と単価を入力して見積金額を確認します。',
-  '見積書PDFを出力し、必要に応じて請求書へ変換します。',
-  '請求書番号、発行日、支払期限を入れて請求書PDFを作成します。',
+  '案件名、顧客、金額、期限、メモを登録します。',
+  '案件から見積書を作成し、受注後に請求書へ変換します。',
+  '請求済み案件の未入金と期限超過を確認します。',
+  '入金確認後にステータスを入金済みに変更します。',
 ];
 
 const useCases = [
   {
     title: 'Web制作フリーランス',
-    description: '初回相談後、その場で概算見積を作成。受注後は同じ内容から請求書へ進められます。',
-    result: '見積から請求までの転記を削減',
+    description: 'Web制作案件ごとに見積、請求、入金予定日をまとめて管理できます。',
+    result: '未入金の見落としを削減',
   },
   {
     title: '業務委託エンジニア',
-    description: '月末の稼働時間と単価を入力して、請求書PDFと履歴をまとめて管理できます。',
-    result: '毎月の請求作業を短縮',
+    description: '動画編集やAI開発のスポット案件を、請求済み・入金済みで整理できます。',
+    result: '案件ごとの請求状況を可視化',
   },
   {
     title: '個人事業主の継続案件',
-    description: '顧客情報と過去履歴を残し、同じ取引先への見積・請求をすばやく再作成できます。',
-    result: '継続案件の事務作業を標準化',
+    description: 'デザイン、ライター案件の顧客メモと支払期限をまとめて確認できます。',
+    result: '入金確認までの流れを標準化',
   },
 ];
 
@@ -99,6 +98,7 @@ const faqItems = [
 
 const comparisonRows = [
   { feature: '月間作成件数', free: '3件まで', pro: '無制限', business: '無制限' },
+  { feature: '案件管理', free: '3件まで', pro: '無制限', business: '無制限' },
   { feature: '見積書・請求書作成', free: '対応', pro: '対応', business: '対応' },
   { feature: 'PDF出力', free: '対応', pro: '対応', business: '対応' },
   { feature: '顧客管理', free: '体験のみ', pro: '対応', business: '対応' },
@@ -197,8 +197,8 @@ export default function HomeScreen() {
   return (
     <>
       <SeoHead
-        title="AI請求書・見積書作成"
-        description="AI Officeは、個人事業主・フリーランス向けのAI請求書・見積書作成SaaSです。インボイス対応、PDF出力、顧客管理、履歴保存を月額980円から利用できます。"
+        title="フリーランスの案件管理SaaS"
+        description="AI Officeは、フリーランス向けに案件、見積、請求、入金確認を1画面で管理するSaaSです。月3件まで無料、Proは月980円で利用できます。"
       />
       <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
         <AppHeader />
@@ -208,10 +208,10 @@ export default function HomeScreen() {
               <View style={styles.welcomeCopy} lightColor="transparent" darkColor="transparent">
                 <Text style={styles.eyebrow}>Dashboard</Text>
                 <Text style={styles.dashboardTitle}>
-                  {currentUser?.email ? 'おかえりなさい' : 'ようこそ、AI Officeへ'}
+                  {currentUser?.email ? '案件の状況を確認' : '案件ダッシュボード'}
                 </Text>
                 <Text style={styles.dashboardText}>
-                  見積書・請求書の作成状況とプランをスマホからすぐ確認できます。
+                  案件、見積、請求、入金確認までをスマホから1画面で管理できます。
                 </Text>
               </View>
               <View style={styles.planPill}>
@@ -221,48 +221,57 @@ export default function HomeScreen() {
             </View>
             <View style={styles.dashboardGrid} lightColor="transparent" darkColor="transparent">
               <DashboardCard
-                label="今月利用件数"
-                value={`${usageSummary?.used ?? 0}件`}
-                note={usageSummary?.limit === null ? '無制限で利用可能' : 'Freeは月3回まで'}
+                label="今月売上"
+                value={formatCurrency(monthlyProjectRevenue)}
+                note="入金済み案件"
               />
-              <DashboardCard label="見積書数" value={`${estimateCount}件`} note="保存済み見積書" />
-              <DashboardCard label="請求書数" value={`${invoiceCount}件`} note="保存済み請求書" />
+              <DashboardCard label="未入金額" value={formatCurrency(outstandingProjectAmount)} note="請求済み・未入金" danger />
+              <DashboardCard label="進行中案件" value={`${activeProjectCount}件`} note="入金前の案件" />
+              <DashboardCard label="請求済み件数" value={`${invoicedProjectCount}件`} note="入金待ち" />
+              <DashboardCard label="入金済み件数" value={`${paidProjectCount}件`} note="完了案件" />
               <DashboardCard
-                label="保存可能残数"
+                label="無料枠残数"
                 value={usageSummary?.remaining === null ? '無制限' : `${usageSummary?.remaining ?? 3}回`}
                 note={usageSummary?.limit === null ? 'Pro/Business' : '今月のFree残数'}
               />
             </View>
             <View style={styles.dashboardActions} lightColor="transparent" darkColor="transparent">
-              <Link href="/estimate" style={styles.dashboardPrimaryLink}>
-                見積書を作成
+              <Link href={'/projects' as never} style={styles.dashboardPrimaryLink}>
+                案件を管理
               </Link>
-              <Link href="/invoice" style={styles.dashboardSecondaryLink}>
-                請求書を作成
+              <Link href="/estimate" style={styles.dashboardSecondaryLink}>
+                案件から見積を作成
               </Link>
             </View>
           </View>
 
           <View style={styles.hero} lightColor="transparent" darkColor="transparent">
             <View style={styles.heroCopy} lightColor="transparent" darkColor="transparent">
-              <Text style={styles.eyebrow}>個人事業主・フリーランス向け</Text>
-              <Text style={styles.title}>AI請求書・見積書作成</Text>
+              <Text style={styles.eyebrow}>Web制作・動画編集・AI開発・デザイン・ライター向け</Text>
+              <Text style={styles.title}>フリーランスの案件管理を、請求までひとまとめに。</Text>
               <Text style={styles.description}>
-                インボイス対応、PDF出力、顧客管理、履歴保存をブラウザに集約。月3回まで無料で試せて、Proなら月額980円で無制限に使えます。
+                案件が決まったら、見積・請求・入金確認まで1画面で管理。月3件まで無料、Proは月980円で利用できます。
               </Text>
+              <View style={styles.flowBox} lightColor="transparent" darkColor="transparent">
+                {['案件', '見積', '請求', '入金確認'].map((step, index) => (
+                  <View key={step} style={styles.flowStep} lightColor="transparent" darkColor="transparent">
+                    <Text style={styles.flowText}>{step}</Text>
+                    {index < 3 ? <Text style={styles.flowArrow}>↓</Text> : null}
+                  </View>
+                ))}
+              </View>
               <View style={styles.heroFeatures} lightColor="transparent" darkColor="transparent">
-                {['インボイス対応', 'PDF出力', '顧客管理', '履歴保存'].map((feature) => (
+                {['案件カード', '未入金管理', 'PDF出力', '顧客管理'].map((feature) => (
                   <Text key={feature} style={styles.heroFeature}>
                     {feature}
                   </Text>
                 ))}
               </View>
-              <Text style={styles.heroPrice}>月額980円</Text>
+              <Text style={styles.heroPrice}>月3件まで無料。Proは月980円。</Text>
               <View style={styles.ctaRow} lightColor="transparent" darkColor="transparent">
                 <Link
                   href={{
-                    pathname: '/estimate',
-                    params: sampleEstimateParams,
+                    pathname: '/projects' as never,
                   }}
                   style={styles.secondaryLink}>
                   無料で試す
@@ -282,24 +291,69 @@ export default function HomeScreen() {
               <Text style={styles.microCopy}>Freeは月3件まで。クレジットカード決済はStripeで安全に処理されます。</Text>
             </View>
             <View style={styles.heroPreview}>
-              <Text style={styles.previewLabel}>今月の業務</Text>
+              <Text style={styles.previewLabel}>案件ボード</Text>
               <View style={styles.previewRow} lightColor="transparent" darkColor="transparent">
-                <Text style={styles.previewTitle}>コーポレートサイト制作</Text>
-                <Text style={styles.previewAmount}>192,000円</Text>
+                <Text style={styles.previewTitle}>コーポレートサイト改善</Text>
+                <Text style={styles.previewAmount}>{formatCurrency(outstandingProjectAmount)}</Text>
               </View>
               <View style={styles.previewDivider} />
               <View style={styles.previewMetrics} lightColor="transparent" darkColor="transparent">
                 <View style={styles.previewMetric} lightColor="transparent" darkColor="transparent">
-                  <Text style={styles.previewMetricValue}>2 / 3</Text>
-                  <Text style={styles.previewMetricLabel}>Free利用</Text>
+                  <Text style={styles.previewMetricValue}>{invoicedProjectCount}件</Text>
+                  <Text style={styles.previewMetricLabel}>未入金</Text>
                 </View>
                 <View style={styles.previewMetric} lightColor="transparent" darkColor="transparent">
-                  <Text style={styles.previewMetricValue}>PDF</Text>
-                  <Text style={styles.previewMetricLabel}>即出力</Text>
+                  <Text style={styles.previewMetricValue}>{activeProjectCount}件</Text>
+                  <Text style={styles.previewMetricLabel}>進行中</Text>
                 </View>
               </View>
-              <Text style={styles.previewNote}>Proなら作成件数は無制限</Text>
+              <Text style={styles.previewNote}>未入金を目立たせ、入金確認まで追えます。</Text>
             </View>
+          </View>
+
+          <View style={[styles.panel, styles.unpaidPanel]}>
+            <View style={styles.panelHeader} lightColor="transparent" darkColor="transparent">
+              <Text style={styles.panelTitle}>未入金一覧</Text>
+              <Text style={styles.panelMeta}>請求済みで入金待ちの案件を優先表示します。</Text>
+            </View>
+            {mockProjectRecords
+              .filter((project) => project.status === 'invoiced')
+              .map((project) => (
+                <View key={project.id} style={styles.projectRow} lightColor="transparent" darkColor="transparent">
+                  <View style={styles.rowBody} lightColor="transparent" darkColor="transparent">
+                    <Text style={styles.rowTitle}>{project.name}</Text>
+                    <Text style={styles.rowSub}>
+                      {project.customerName} / 期限 {project.dueDate}
+                      {isOverdue(project.dueDate) ? ' / 期限超過' : ''}
+                    </Text>
+                  </View>
+                  <View style={styles.rowSide} lightColor="transparent" darkColor="transparent">
+                    <Text style={styles.rowAmount}>{formatCurrency(project.amount)}</Text>
+                    <Link href={'/projects' as never} style={styles.status}>
+                      入金確認
+                    </Link>
+                  </View>
+                </View>
+              ))}
+          </View>
+
+          <View style={styles.panel}>
+            <View style={styles.panelHeader} lightColor="transparent" darkColor="transparent">
+              <Text style={styles.panelTitle}>案件カード</Text>
+              <Text style={styles.panelMeta}>案件ステータスを見積前、見積済み、請求済み、入金済みで管理します。</Text>
+            </View>
+            {mockProjectRecords.slice(0, 3).map((project) => (
+              <View key={project.id} style={styles.projectRow} lightColor="transparent" darkColor="transparent">
+                <View style={styles.rowBody} lightColor="transparent" darkColor="transparent">
+                  <Text style={styles.rowTitle}>{project.name}</Text>
+                  <Text style={styles.rowSub}>{project.customerName}</Text>
+                </View>
+                <View style={styles.rowSide} lightColor="transparent" darkColor="transparent">
+                  <Text style={styles.rowAmount}>{formatCurrency(project.amount)}</Text>
+                  <Text style={styles.status}>{getProjectStatusLabel(project.status)}</Text>
+                </View>
+              </View>
+            ))}
           </View>
 
           <View style={styles.panel}>
@@ -331,9 +385,9 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.kpiGrid} lightColor="transparent" darkColor="transparent">
-            <KpiCard label="今月見積件数" value={`${monthlyEstimateCount}件`} trend="サンプルデータ" />
-            <KpiCard label="今月請求額" value={formatCurrency(monthlyInvoiceAmount)} trend="入金予定を含む" />
-            <KpiCard label="顧客数" value={`${mockCustomers.length}社`} trend="管理画面で確認可能" />
+            <KpiCard label="今月売上" value={formatCurrency(monthlyProjectRevenue)} trend="入金済み案件" />
+            <KpiCard label="未入金額" value={formatCurrency(outstandingProjectAmount)} trend="請求済み・入金待ち" />
+            <KpiCard label="顧客数" value={`${mockCustomers.length}社`} trend="案件画面から確認可能" />
           </View>
 
           <View style={styles.panel}>
@@ -497,11 +551,11 @@ function KpiCard({ label, trend, value }: { label: string; trend: string; value:
   );
 }
 
-function DashboardCard({ label, note, value }: { label: string; note: string; value: string }) {
+function DashboardCard({ danger, label, note, value }: { danger?: boolean; label: string; note: string; value: string }) {
   return (
-    <View style={styles.dashboardCard}>
+    <View style={[styles.dashboardCard, danger ? styles.dashboardCardDanger : undefined]}>
       <Text style={styles.dashboardCardLabel}>{label}</Text>
-      <Text style={styles.dashboardCardValue}>{value}</Text>
+      <Text style={[styles.dashboardCardValue, danger ? styles.dangerText : undefined]}>{value}</Text>
       <Text style={styles.dashboardCardNote}>{note}</Text>
     </View>
   );
@@ -635,6 +689,10 @@ const styles = StyleSheet.create({
     padding: 14,
     gap: 5,
   },
+  dashboardCardDanger: {
+    borderColor: '#fed7aa',
+    backgroundColor: '#fff7ed',
+  },
   dashboardCardLabel: {
     color: '#64748b',
     fontSize: 12,
@@ -650,6 +708,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     lineHeight: 17,
+  },
+  dangerText: {
+    color: '#dc2626',
   },
   dashboardActions: {
     gap: 10,
@@ -716,6 +777,28 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
+  },
+  flowBox: {
+    borderWidth: 1,
+    borderColor: '#dbeafe',
+    borderRadius: 8,
+    backgroundColor: '#f8fafc',
+    gap: 4,
+    padding: 12,
+  },
+  flowStep: {
+    alignItems: 'center',
+    gap: 3,
+  },
+  flowText: {
+    color: '#0f172a',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  flowArrow: {
+    color: '#2563eb',
+    fontSize: 16,
+    fontWeight: '900',
   },
   heroFeature: {
     overflow: 'hidden',
@@ -877,6 +960,10 @@ const styles = StyleSheet.create({
     shadowRadius: 18,
     elevation: 1,
   },
+  unpaidPanel: {
+    borderColor: '#fed7aa',
+    backgroundColor: '#fff7ed',
+  },
   panelHeader: {
     gap: 2,
     marginBottom: 2,
@@ -934,6 +1021,15 @@ const styles = StyleSheet.create({
     borderTopColor: '#eef2f7',
     gap: 8,
     paddingTop: 12,
+  },
+  projectRow: {
+    alignItems: 'flex-start',
+    borderWidth: 1,
+    borderColor: '#dbeafe',
+    borderRadius: 8,
+    backgroundColor: '#ffffff',
+    gap: 8,
+    padding: 12,
   },
   planRow: {
     alignItems: 'flex-start',

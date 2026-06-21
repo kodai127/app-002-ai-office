@@ -72,6 +72,76 @@ export type Database = {
         };
         Relationships: [];
       };
+      projects: {
+        Row: {
+          id: string;
+          user_id: string;
+          customer_id: string | null;
+          customer_name: string;
+          name: string;
+          amount: number;
+          status: 'before_estimate' | 'estimated' | 'invoiced' | 'paid';
+          memo: string | null;
+          due_date: string;
+          estimate_id: string | null;
+          invoice_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          customer_id?: string | null;
+          customer_name: string;
+          name: string;
+          amount?: number;
+          status?: 'before_estimate' | 'estimated' | 'invoiced' | 'paid';
+          memo?: string | null;
+          due_date: string;
+          estimate_id?: string | null;
+          invoice_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          customer_id?: string | null;
+          customer_name?: string;
+          name?: string;
+          amount?: number;
+          status?: 'before_estimate' | 'estimated' | 'invoiced' | 'paid';
+          memo?: string | null;
+          due_date?: string;
+          estimate_id?: string | null;
+          invoice_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'projects_customer_id_fkey';
+            columns: ['customer_id'];
+            isOneToOne: false;
+            referencedRelation: 'customers';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'projects_estimate_id_fkey';
+            columns: ['estimate_id'];
+            isOneToOne: false;
+            referencedRelation: 'estimates';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'projects_invoice_id_fkey';
+            columns: ['invoice_id'];
+            isOneToOne: false;
+            referencedRelation: 'invoices';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       estimates: {
         Row: {
           id: string;
@@ -210,5 +280,6 @@ export type Database = {
 
 export type ProfileRow = Database['public']['Tables']['profiles']['Row'];
 export type CustomerRow = Database['public']['Tables']['customers']['Row'];
+export type ProjectRow = Database['public']['Tables']['projects']['Row'];
 export type EstimateRow = Database['public']['Tables']['estimates']['Row'];
 export type InvoiceRow = Database['public']['Tables']['invoices']['Row'];

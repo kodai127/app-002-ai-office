@@ -38,6 +38,23 @@ export type InvoiceRecord = {
   paidAt?: string;
 };
 
+export type ProjectStatus = 'before_estimate' | 'estimated' | 'invoiced' | 'paid';
+
+export type ProjectRecord = {
+  id: string;
+  name: string;
+  customerId: string;
+  customerName: string;
+  amount: number;
+  status: ProjectStatus;
+  memo: string;
+  dueDate: string;
+  estimateId?: string;
+  invoiceId?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type SupabaseTableDefinition = {
   name: string;
   purpose: string;
@@ -153,6 +170,62 @@ export const mockInvoiceRecords: InvoiceRecord[] = [
   },
 ];
 
+export const mockProjectRecords: ProjectRecord[] = [
+  {
+    id: 'prj_20260601_001',
+    name: 'コーポレートサイト改善',
+    customerId: 'cus_001',
+    customerName: '株式会社サンプル',
+    amount: 200000,
+    status: 'invoiced',
+    memo: '請求済み。7月10日入金予定。',
+    dueDate: '2026-07-10',
+    estimateId: 'est_20260601_001',
+    invoiceId: 'inv_20260610_001',
+    createdAt: '2026-06-01',
+    updatedAt: '2026-06-10',
+  },
+  {
+    id: 'prj_20260607_001',
+    name: 'LP制作',
+    customerId: 'cus_002',
+    customerName: '合同会社ブルー',
+    amount: 192000,
+    status: 'estimated',
+    memo: '見積送付済み。正式発注待ち。',
+    dueDate: '2026-07-05',
+    estimateId: 'est_20260607_001',
+    createdAt: '2026-06-07',
+    updatedAt: '2026-06-07',
+  },
+  {
+    id: 'prj_20260614_001',
+    name: '保守運用プラン',
+    customerId: 'cus_003',
+    customerName: 'ミライデザイン株式会社',
+    amount: 140000,
+    status: 'paid',
+    memo: '入金確認済み。翌月分の継続提案あり。',
+    dueDate: '2026-07-15',
+    estimateId: 'est_20260614_001',
+    invoiceId: 'inv_20260615_001',
+    createdAt: '2026-06-14',
+    updatedAt: '2026-06-19',
+  },
+  {
+    id: 'prj_20260618_001',
+    name: 'AI業務ツールPoC',
+    customerId: 'cus_001',
+    customerName: '株式会社サンプル',
+    amount: 320000,
+    status: 'before_estimate',
+    memo: '要件ヒアリング後に見積作成予定。',
+    dueDate: '2026-06-28',
+    createdAt: '2026-06-18',
+    updatedAt: '2026-06-18',
+  },
+];
+
 export const supabaseTableDefinitions: SupabaseTableDefinition[] = [
   {
     name: 'profiles',
@@ -179,6 +252,25 @@ export const supabaseTableDefinitions: SupabaseTableDefinition[] = [
       { name: 'phone', type: 'text', note: '電話番号' },
       { name: 'address', type: 'text', note: '住所' },
       { name: 'memo', type: 'text', note: '社内メモ' },
+      { name: 'created_at', type: 'timestamptz', note: '作成日時' },
+      { name: 'updated_at', type: 'timestamptz', note: '更新日時' },
+    ],
+  },
+  {
+    name: 'projects',
+    purpose: '案件を起点に、見積・請求・入金確認までの状態を管理。',
+    columns: [
+      { name: 'id', type: 'text primary key', note: '案件ID。アプリ側で生成。' },
+      { name: 'user_id', type: 'uuid references auth.users(id)', note: '所有ユーザー。RLSで分離。' },
+      { name: 'customer_id', type: 'text references customers(id)', note: '顧客ID' },
+      { name: 'customer_name', type: 'text not null', note: '保存時点の顧客名' },
+      { name: 'name', type: 'text not null', note: '案件名' },
+      { name: 'amount', type: 'numeric not null default 0', note: '案件金額' },
+      { name: 'status', type: 'text not null default before_estimate', note: 'before_estimate/estimated/invoiced/paid' },
+      { name: 'memo', type: 'text', note: '案件メモ' },
+      { name: 'due_date', type: 'date', note: '期限または入金予定日' },
+      { name: 'estimate_id', type: 'text references estimates(id)', note: '紐付く見積ID' },
+      { name: 'invoice_id', type: 'text references invoices(id)', note: '紐付く請求書ID' },
       { name: 'created_at', type: 'timestamptz', note: '作成日時' },
       { name: 'updated_at', type: 'timestamptz', note: '更新日時' },
     ],
@@ -236,4 +328,22 @@ export function isThisMonth(dateString: string, today = new Date()) {
   const date = new Date(`${dateString}T00:00:00`);
 
   return date.getFullYear() === today.getFullYear() && date.getMonth() === today.getMonth();
+}
+
+export function getProjectStatusLabel(status: ProjectStatus) {
+  const labels: Record<ProjectStatus, string> = {
+    before_estimate: '見積前',
+    estimated: '見積済み',
+    invoiced: '請求済み',
+    paid: '入金済み',
+  };
+
+  return labels[status];
+}
+
+export function isOverdue(dateString: string, today = new Date()) {
+  const date = new Date(`${dateString}T00:00:00`);
+  const baseline = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+
+  return date < baseline;
 }

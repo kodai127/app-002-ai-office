@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, TextInput } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { Link, useLocalSearchParams } from 'expo-router';
 import { User } from '@supabase/supabase-js';
 
 import { AppHeader } from '@/components/AppHeader';
@@ -14,10 +14,14 @@ import {
   Customer,
   EstimateRecord,
   formatCurrency,
+  getProjectStatusLabel,
+  isOverdue,
   InvoiceRecord,
   mockCustomers,
   mockEstimateRecords,
   mockInvoiceRecords,
+  mockProjectRecords,
+  ProjectRecord,
   supabaseTableDefinitions,
 } from '@/lib/officeData';
 import { getSupabaseSetupMessage } from '@/lib/supabaseClient';
@@ -33,7 +37,7 @@ import {
   upsertCustomer,
 } from '@/lib/supabaseRepositories';
 
-type TabKey = 'dashboard' | 'customers' | 'estimates' | 'invoices' | 'billing' | 'mypage' | 'supabase';
+type TabKey = 'dashboard' | 'projects' | 'customers' | 'estimates' | 'invoices' | 'billing' | 'mypage' | 'supabase';
 
 const pricingComparisonRows = [
   { feature: '月間利用回数', free: '月3回', pro: '無制限', business: '無制限' },
@@ -60,6 +64,7 @@ export default function SettingsScreen() {
   const params = useLocalSearchParams<{ checkout?: string; tab?: string }>();
   const [activeTab, setActiveTab] = useState<TabKey>('dashboard');
   const [customers, setCustomers] = useState<Customer[]>(mockCustomers);
+  const [projects, setProjects] = useState<ProjectRecord[]>(mockProjectRecords);
   const [estimateRecords, setEstimateRecords] = useState<EstimateRecord[]>(mockEstimateRecords);
   const [invoiceRecords, setInvoiceRecords] = useState<InvoiceRecord[]>(mockInvoiceRecords);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -142,7 +147,16 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     const nextTab = params.tab as TabKey | undefined;
-    const validTabs: TabKey[] = ['dashboard', 'customers', 'estimates', 'invoices', 'billing', 'mypage', 'supabase'];
+    const validTabs: TabKey[] = [
+      'dashboard',
+      'projects',
+      'customers',
+      'estimates',
+      'invoices',
+      'billing',
+      'mypage',
+      'supabase',
+    ];
 
     if (nextTab && validTabs.includes(nextTab)) {
       setActiveTab(nextTab);
@@ -270,6 +284,23 @@ export default function SettingsScreen() {
     }
   };
 
+  const handleMarkProjectPaid = (projectId: string) => {
+    const today = new Date().toISOString().slice(0, 10);
+
+    setProjects((currentProjects) =>
+      currentProjects.map((project) =>
+        project.id === projectId
+          ? {
+              ...project,
+              status: 'paid',
+              updatedAt: today,
+            }
+          : project
+      )
+    );
+    setSyncStatus('案件を入金済みに変更しました。');
+  };
+
   return (
     <>
       <SeoHead
@@ -293,6 +324,7 @@ export default function SettingsScreen() {
 
           <View style={styles.segmented} lightColor="transparent" darkColor="transparent">
             <SegmentButton active={activeTab === 'dashboard'} label="ダッシュボード" onPress={() => setActiveTab('dashboard')} />
+            <SegmentButton active={activeTab === 'projects'} label="案件" onPress={() => setActiveTab('projects')} />
             <SegmentButton active={activeTab === 'customers'} label="顧客" onPress={() => setActiveTab('customers')} />
             <SegmentButton active={activeTab === 'estimates'} label="見積" onPress={() => setActiveTab('estimates')} />
             <SegmentButton active={activeTab === 'invoices'} label="請求" onPress={() => setActiveTab('invoices')} />
@@ -325,6 +357,16 @@ export default function SettingsScreen() {
                   note="見積書・請求書のクラウド保存"
                   value={usageSummary?.remaining === null ? '無制限' : `${usageSummary?.remaining ?? 3}回`}
                 />
+                <MetricCard label="進行中案件" note="入金前の案件" value={`${projects.filter((project) => project.status !== 'paid').length}件`} />
+                <MetricCard
+                  label="未入金額"
+                  note="請求済み・入金待ち"
+                  value={formatCurrency(
+                    projects
+                      .filter((project) => project.status === 'invoiced')
+                      .reduce((total, project) => total + project.amount, 0)
+                  )}
+                />
                 <MetricCard label="見積件数" note="保存済み見積書" value={`${estimateRecords.length}件`} />
                 <MetricCard label="請求件数" note="保存済み請求書" value={`${invoiceRecords.length}件`} />
                 <MetricCard label="顧客数" note="管理中の顧客" value={`${customers.length}社`} />
@@ -341,6 +383,97 @@ export default function SettingsScreen() {
                 </View>
               ) : null}
             </View>
+          ) : null}
+
+          {activeTab === 'projects' ? (
+          <View style={styles.panel}>
+            <View style={styles.panelHeader} lightColor="transparent" darkColor="transparent">
+              <View lightColor="transparent" darkColor="transparent">
+                <Text style={styles.panelTitle}>案件管理</Text>
+                <Text style={styles.panelMeta}>案件名、顧客、金額、ステータス、メモ、期限をまとめて管理します。</Text>
+              </View>
+            </View>
+            <View style={styles.upgradeBox}>
+              <Text style={styles.rowTitle}>未入金管理</Text>
+              <Text style={styles.rowSub}>
+                請求済み案件: {projects.filter((project) => project.status === 'invoiced').length}件 / 未入金額:{' '}
+                {formatCurrency(
+                  projects
+                    .filter((project) => project.status === 'invoiced')
+                    .reduce((total, project) => total + project.amount, 0)
+                )}
+              </Text>
+            </View>
+            {projects.map((project) => {
+              const overdue = project.status === 'invoiced' && isOverdue(project.dueDate);
+
+              return (
+                <View key={project.id} style={[styles.projectCard, overdue ? styles.overdueProjectCard : undefined]}>
+                  <View style={styles.projectHeader} lightColor="transparent" darkColor="transparent">
+                    <View style={styles.rowBody} lightColor="transparent" darkColor="transparent">
+                      <Text style={styles.rowTitle}>{project.name}</Text>
+                      <Text style={styles.rowSub}>{project.customerName}</Text>
+                    </View>
+                    <Text style={[styles.statusBadge, overdue ? styles.overdueBadge : undefined]}>
+                      {getProjectStatusLabel(project.status)}
+                    </Text>
+                  </View>
+                  <View style={styles.projectMetaGrid} lightColor="transparent" darkColor="transparent">
+                    <View style={styles.projectMeta} lightColor="transparent" darkColor="transparent">
+                      <Text style={styles.profileLabel}>金額</Text>
+                      <Text style={styles.profileValue}>{formatCurrency(project.amount)}</Text>
+                    </View>
+                    <View style={styles.projectMeta} lightColor="transparent" darkColor="transparent">
+                      <Text style={styles.profileLabel}>期限</Text>
+                      <Text style={[styles.profileValue, overdue ? styles.overdueText : undefined]}>
+                        {project.dueDate}
+                        {overdue ? ' 期限超過' : ''}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.rowSub}>{project.memo}</Text>
+                  <View style={styles.projectActions} lightColor="transparent" darkColor="transparent">
+                    <Link
+                      href={{
+                        pathname: '/estimate',
+                        params: {
+                          customerName: project.customerName,
+                          hourlyRate: '8000',
+                          hours: Math.max(Math.round(project.amount / 8000), 1).toString(),
+                          projectName: project.name,
+                          workDescription: project.memo,
+                        },
+                      }}
+                      style={styles.secondaryLink}>
+                      案件から見積書作成
+                    </Link>
+                    <Link
+                      href={{
+                        pathname: '/invoice',
+                        params: {
+                          customerName: project.customerName,
+                          dueDate: project.dueDate,
+                          hourlyRate: '8000',
+                          hours: Math.max(Math.round(project.amount / 8000), 1).toString(),
+                          invoiceNumber: `INV-${project.id.replace('prj_', '')}`,
+                          issueDate: new Date().toISOString().slice(0, 10),
+                          projectName: project.name,
+                          workDescription: project.memo,
+                        },
+                      }}
+                      style={styles.primaryLink}>
+                      請求書作成
+                    </Link>
+                    {project.status === 'invoiced' ? (
+                      <Pressable style={styles.paidButton} onPress={() => handleMarkProjectPaid(project.id)}>
+                        <Text style={styles.paidButtonText}>入金済みにする</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                </View>
+              );
+            })}
+          </View>
           ) : null}
 
           {activeTab === 'customers' ? (
@@ -916,6 +1049,92 @@ const styles = StyleSheet.create({
     padding: 14,
     backgroundColor: '#ffffff',
     gap: 10,
+  },
+  projectCard: {
+    borderWidth: 1,
+    borderColor: '#dbeafe',
+    borderRadius: 8,
+    padding: 14,
+    backgroundColor: '#ffffff',
+    gap: 10,
+  },
+  overdueProjectCard: {
+    borderColor: '#fecaca',
+    backgroundColor: '#fff7ed',
+  },
+  projectHeader: {
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  statusBadge: {
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+    borderRadius: 999,
+    backgroundColor: '#eff6ff',
+    color: '#1d4ed8',
+    fontSize: 12,
+    fontWeight: '900',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  overdueBadge: {
+    borderColor: '#fed7aa',
+    backgroundColor: '#ffedd5',
+    color: '#c2410c',
+  },
+  projectMetaGrid: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  projectMeta: {
+    flex: 1,
+    borderRadius: 8,
+    backgroundColor: '#f8fafc',
+    gap: 3,
+    padding: 10,
+  },
+  overdueText: {
+    color: '#dc2626',
+  },
+  projectActions: {
+    gap: 8,
+  },
+  secondaryLink: {
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#dbeafe',
+    borderRadius: 8,
+    backgroundColor: '#ffffff',
+    color: '#2563eb',
+    fontSize: 14,
+    fontWeight: '900',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    textAlign: 'center',
+  },
+  primaryLink: {
+    overflow: 'hidden',
+    borderRadius: 8,
+    backgroundColor: '#2563eb',
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '900',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    textAlign: 'center',
+  },
+  paidButton: {
+    alignItems: 'center',
+    borderRadius: 8,
+    backgroundColor: '#16a34a',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  paidButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '900',
   },
   historyFooter: {
     alignItems: 'flex-start',

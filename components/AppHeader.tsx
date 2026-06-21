@@ -16,21 +16,24 @@ export function AppHeader() {
           <Link href="/" style={styles.logo}>
             AI Office
           </Link>
-          <Text style={styles.tagline}>見積・請求を管理するSaaS</Text>
+          <Text style={styles.tagline}>案件から入金まで管理するSaaS</Text>
         </View>
       </View>
       <View style={styles.nav} lightColor="transparent" darkColor="transparent">
+        <Link href={'/projects' as never} style={styles.navLink}>
+          案件
+        </Link>
+        <Link href={'/customers' as never} style={styles.navLink}>
+          顧客
+        </Link>
         <Link href="/estimate" style={styles.navLink}>
-          見積書
+          見積
         </Link>
         <Link href="/invoice" style={styles.navLink}>
-          請求書
+          請求
         </Link>
-        <Link href="/settings?tab=customers" style={styles.navLink}>
-          顧客管理
-        </Link>
-        <Link href="/settings?tab=billing" style={styles.navLink}>
-          料金
+        <Link href="/settings" style={styles.navLink}>
+          設定
         </Link>
         <Link href="/settings?tab=mypage" style={styles.loginLink}>
           ログイン
