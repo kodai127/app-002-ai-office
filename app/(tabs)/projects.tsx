@@ -5,6 +5,7 @@ import { Link } from 'expo-router';
 import { AppHeader } from '@/components/AppHeader';
 import { SeoHead } from '@/components/SeoHead';
 import { Text, View } from '@/components/Themed';
+import { getCurrentUser } from '@/lib/auth';
 import { Customer, formatCurrency, getProjectStatusLabel, isOverdue, ProjectRecord, ProjectStatus } from '@/lib/officeData';
 import {
   deleteProjectRecord,
@@ -56,12 +57,17 @@ export default function ProjectsScreen() {
   const [form, setForm] = useState(initialForm);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [lastPayload, setLastPayload] = useState('');
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [statusMessage, setStatusMessage] = useState('');
+  const [userId, setUserId] = useState('');
   const summary = useMemo(() => summarizeProjects(projects), [projects]);
   const unpaidProjects = useMemo(() => projects.filter((project) => project.status === 'invoiced'), [projects]);
 
   useEffect(() => {
+    getCurrentUser().then((currentUser) => {
+      setUserId(currentUser?.id ?? '');
+    });
     loadProjects();
   }, []);
 
@@ -70,7 +76,12 @@ export default function ProjectsScreen() {
     setStatusMessage('案件を読み込んでいます...');
 
     try {
-      const [nextCustomers, nextProjects] = await Promise.all([fetchCustomers(), fetchProjectRecords()]);
+      const [currentUser, nextCustomers, nextProjects] = await Promise.all([
+        getCurrentUser(),
+        fetchCustomers(),
+        fetchProjectRecords(),
+      ]);
+      setUserId(currentUser?.id ?? '');
       setCustomers(nextCustomers);
       setProjects(nextProjects);
       setForm((currentForm) => ({
@@ -117,6 +128,19 @@ export default function ProjectsScreen() {
 
     setIsSaving(true);
     setStatusMessage(form.id ? '案件を更新しています...' : '案件を保存しています...');
+    const diagnosticPayload = {
+      amount,
+      customerId: form.customerId || null,
+      customerName: form.customerName || '顧客未設定',
+      dueDate: form.dueDate,
+      id: form.id || 'new',
+      memo: form.memo || null,
+      name: form.name,
+      status: form.status,
+      userId,
+    };
+    setLastPayload(JSON.stringify(diagnosticPayload));
+    console.error('案件保存payload', diagnosticPayload);
 
     try {
       const savedProject = await upsertProject({
@@ -140,7 +164,7 @@ export default function ProjectsScreen() {
         return [savedProject, ...currentProjects];
       });
       resetForm();
-      setStatusMessage('案件を保存しました');
+      setStatusMessage(`案件を保存しました。ID: ${savedProject.id}`);
     } catch (error) {
       const message = formatSupabaseError(error);
       console.error('案件保存エラー', {
@@ -225,6 +249,8 @@ export default function ProjectsScreen() {
               Web制作、動画編集、AI開発、デザイン、ライター案件の見積・請求・未入金をSupabaseに保存します。
             </Text>
             <Text style={styles.statusMessage}>{statusMessage}</Text>
+            <Text style={styles.diagnosticText}>ログインuser_id: {userId || '未ログイン'}</Text>
+            {lastPayload ? <Text style={styles.diagnosticText}>保存payload: {lastPayload}</Text> : null}
           </View>
 
           <View style={styles.metricGrid} lightColor="transparent" darkColor="transparent">
@@ -568,6 +594,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
     lineHeight: 18,
+  },
+  diagnosticText: {
+    color: '#475569',
+    fontSize: 11,
+    fontWeight: '700',
+    lineHeight: 16,
   },
   metricGrid: {
     flexDirection: 'row',

@@ -49,11 +49,13 @@ export function formatSupabaseError(error: unknown) {
 }
 
 function throwSupabaseError(context: string, error: unknown, payload?: unknown): never {
+  const payloadText = payload ? ` / payload: ${JSON.stringify(payload)}` : '';
+
   console.error(context, {
     error,
     payload,
   });
-  throw new Error(`${context}: ${formatSupabaseError(error)}`);
+  throw new Error(`${context}: ${formatSupabaseError(error)}${payloadText}`);
 }
 
 function isMissingCustomerNameColumn(error: unknown) {
