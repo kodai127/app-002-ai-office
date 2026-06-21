@@ -220,7 +220,15 @@ export default function CustomersScreen() {
                   <Text style={styles.customerMeta}>{customer.phone || '電話番号未設定'}</Text>
                   <Text style={styles.customerMemo}>{customer.memo || 'メモなし'}</Text>
                   <View style={styles.actionGrid} lightColor="transparent" darkColor="transparent">
-                    <Link href={{ pathname: '/projects' as never }} style={styles.primaryLinkSmall}>
+                    <Link
+                      href={{
+                        pathname: '/projects' as never,
+                        params: {
+                          customerId: customer.id,
+                          customerName: customer.name,
+                        },
+                      }}
+                      style={styles.primaryLinkSmall}>
                       この顧客で案件作成
                     </Link>
                     <View style={styles.cardActionRow} lightColor="transparent" darkColor="transparent">

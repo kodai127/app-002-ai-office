@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, TextInput } from 'react-native';
-import { Link } from 'expo-router';
+import { Link, useLocalSearchParams } from 'expo-router';
 
 import { AppHeader } from '@/components/AppHeader';
 import { SeoHead } from '@/components/SeoHead';
@@ -52,6 +52,7 @@ const initialForm = {
 };
 
 export default function ProjectsScreen() {
+  const params = useLocalSearchParams<{ customerId?: string; customerName?: string }>();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<ProjectRecord | null>(null);
   const [form, setForm] = useState(initialForm);
@@ -70,6 +71,22 @@ export default function ProjectsScreen() {
     });
     loadProjects();
   }, []);
+
+  useEffect(() => {
+    const customerId = typeof params.customerId === 'string' ? params.customerId : '';
+    const customerName = typeof params.customerName === 'string' ? params.customerName : '';
+
+    if (!customerId && !customerName) {
+      return;
+    }
+
+    setForm((currentForm) => ({
+      ...currentForm,
+      customerId,
+      customerName,
+    }));
+    setStatusMessage(customerName ? `${customerName} の案件作成を開始できます。` : '顧客を選択した状態で案件作成を開始できます。');
+  }, [params.customerId, params.customerName]);
 
   const loadProjects = async () => {
     setIsLoading(true);
@@ -493,6 +510,9 @@ function ProjectCard({
       </View>
       <Text style={styles.memo}>{project.memo || 'メモなし'}</Text>
       <View style={styles.actionGrid} lightColor="transparent" darkColor="transparent">
+        <Link href={`/projects/${project.id}` as never} style={styles.detailLink}>
+          案件詳細を見る
+        </Link>
         <Link
           href={{
             pathname: '/estimate',
@@ -839,6 +859,17 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     paddingHorizontal: 14,
     paddingVertical: 12,
+    textAlign: 'center',
+  },
+  detailLink: {
+    overflow: 'hidden',
+    borderRadius: 8,
+    backgroundColor: '#0f172a',
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '900',
+    paddingHorizontal: 14,
+    paddingVertical: 13,
     textAlign: 'center',
   },
   primaryLinkSmall: {

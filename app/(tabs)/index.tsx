@@ -12,13 +12,13 @@ import {
   formatCurrency,
   getProjectStatusLabel,
   isOverdue,
-  mockCustomers,
   mockEstimateRecords,
   mockInvoiceRecords,
   ProjectRecord,
 } from '@/lib/officeData';
 import {
   BillingProfile,
+  fetchCustomers,
   fetchEstimateRecords,
   fetchInvoiceRecords,
   fetchOrCreateProfile,
@@ -114,6 +114,7 @@ export default function HomeScreen() {
   const [contactEmail, setContactEmail] = useState('');
   const [contactMessage, setContactMessage] = useState('');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [customerCount, setCustomerCount] = useState(0);
   const [profile, setProfile] = useState<BillingProfile | null>(null);
   const [projectStatusMessage, setProjectStatusMessage] = useState('ログインすると案件ダッシュボードを表示できます。');
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
@@ -123,6 +124,19 @@ export default function HomeScreen() {
   const proPlan = billingPlans.find((plan) => plan.key === 'pro');
   const projectSummary = useMemo(() => summarizeProjects(projects), [projects]);
   const unpaidProjects = useMemo(() => projects.filter((project) => project.status === 'invoiced'), [projects]);
+  const overdueUnpaidProjects = useMemo(
+    () => unpaidProjects.filter((project) => isOverdue(project.dueDate)),
+    [unpaidProjects]
+  );
+  const sortedUnpaidProjects = useMemo(
+    () =>
+      [...unpaidProjects].sort((left, right) => {
+        const leftOverdue = isOverdue(left.dueDate) ? 1 : 0;
+        const rightOverdue = isOverdue(right.dueDate) ? 1 : 0;
+        return rightOverdue - leftOverdue;
+      }),
+    [unpaidProjects]
+  );
   const contactUrl = useMemo(() => {
     const body = [
       `お名前: ${contactName}`,
@@ -163,11 +177,12 @@ export default function HomeScreen() {
           return;
         }
 
-        const [nextProfile, estimates, invoices, nextProjects] = await Promise.all([
+        const [nextProfile, estimates, invoices, nextProjects, nextCustomers] = await Promise.all([
           fetchOrCreateProfile(),
           fetchEstimateRecords(),
           fetchInvoiceRecords(),
           fetchProjectRecords(),
+          fetchCustomers(),
         ]);
 
         if (!isMounted) {
@@ -178,6 +193,7 @@ export default function HomeScreen() {
         setEstimateCount(estimates.length);
         setInvoiceCount(invoices.length);
         setProjects(nextProjects);
+        setCustomerCount(nextCustomers.length);
         setProjectStatusMessage(nextProjects.length > 0 ? 'Supabaseから案件を集計しています。' : 'まだ保存済み案件はありません。');
       } catch {
         if (isMounted) {
@@ -226,14 +242,19 @@ export default function HomeScreen() {
                 note="入金済み案件"
               />
               <DashboardCard
-                label="未入金額"
-                value={formatCurrency(projectSummary.outstandingAmount)}
-                note="請求済み・未入金"
+                label="未入金"
+                value={`${projectSummary.invoicedCount}件`}
+                note={`総額 ${formatCurrency(projectSummary.outstandingAmount)}`}
                 danger
               />
-              <DashboardCard label="進行中案件" value={`${projectSummary.activeCount}件`} note="入金前の案件" />
-              <DashboardCard label="請求済み件数" value={`${projectSummary.invoicedCount}件`} note="入金待ち" />
-              <DashboardCard label="入金済み件数" value={`${projectSummary.paidCount}件`} note="完了案件" />
+              <DashboardCard label="案件数" value={`${projects.length}件`} note={`${projectSummary.activeCount}件が進行中`} />
+              <DashboardCard label="顧客数" value={`${customerCount}社`} note="Supabase顧客管理" />
+              <DashboardCard
+                label="期限切れ"
+                value={`${overdueUnpaidProjects.length}件`}
+                note="期限超過の未入金"
+                danger={overdueUnpaidProjects.length > 0}
+              />
               <DashboardCard
                 label="無料枠残数"
                 value={usageSummary?.remaining === null ? '無制限' : `${usageSummary?.remaining ?? 3}回`}
@@ -322,8 +343,8 @@ export default function HomeScreen() {
               <Text style={styles.panelTitle}>未入金一覧</Text>
               <Text style={styles.panelMeta}>請求済みで入金待ちの案件を優先表示します。</Text>
             </View>
-            {unpaidProjects.length > 0 ? (
-              unpaidProjects.map((project) => (
+            {sortedUnpaidProjects.length > 0 ? (
+              sortedUnpaidProjects.map((project) => (
                   <View key={project.id} style={styles.projectRow} lightColor="transparent" darkColor="transparent">
                     <View style={styles.rowBody} lightColor="transparent" darkColor="transparent">
                       <Text style={styles.rowTitle}>{project.name}</Text>
@@ -334,8 +355,8 @@ export default function HomeScreen() {
                     </View>
                     <View style={styles.rowSide} lightColor="transparent" darkColor="transparent">
                       <Text style={styles.rowAmount}>{formatCurrency(project.amount)}</Text>
-                      <Link href={'/projects' as never} style={styles.status}>
-                        入金確認
+                      <Link href={`/projects/${project.id}` as never} style={styles.status}>
+                        詳細確認
                       </Link>
                     </View>
                   </View>
@@ -359,7 +380,9 @@ export default function HomeScreen() {
                   </View>
                   <View style={styles.rowSide} lightColor="transparent" darkColor="transparent">
                     <Text style={styles.rowAmount}>{formatCurrency(project.amount)}</Text>
-                    <Text style={styles.status}>{getProjectStatusLabel(project.status)}</Text>
+                    <Link href={`/projects/${project.id}` as never} style={styles.status}>
+                      {getProjectStatusLabel(project.status)}
+                    </Link>
                   </View>
                 </View>
               ))
@@ -399,7 +422,7 @@ export default function HomeScreen() {
           <View style={styles.kpiGrid} lightColor="transparent" darkColor="transparent">
             <KpiCard label="今月売上" value={formatCurrency(projectSummary.monthlyRevenue)} trend="入金済み案件" />
             <KpiCard label="未入金額" value={formatCurrency(projectSummary.outstandingAmount)} trend="請求済み・入金待ち" />
-            <KpiCard label="顧客数" value={`${mockCustomers.length}社`} trend="案件画面から確認可能" />
+            <KpiCard label="顧客数" value={`${customerCount}社`} trend="Supabase顧客管理" />
           </View>
 
           <View style={styles.panel}>
