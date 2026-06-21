@@ -1,14 +1,24 @@
 import { Link } from 'expo-router';
 import { StyleSheet } from 'react-native';
 
-import { View } from './Themed';
+import { Text, View } from './Themed';
 
 export function AppHeader() {
   return (
     <View style={styles.header}>
-      <Link href="/" style={styles.logo}>
-        AI Office
-      </Link>
+      <View style={styles.brandRow} lightColor="transparent" darkColor="transparent">
+        <View style={styles.logoMark}>
+          <Text style={styles.logoMarkText} lightColor="#ffffff" darkColor="#ffffff">
+            AI
+          </Text>
+        </View>
+        <View style={styles.brandCopy} lightColor="transparent" darkColor="transparent">
+          <Link href="/" style={styles.logo}>
+            AI Office
+          </Link>
+          <Text style={styles.tagline}>見積・請求を管理するSaaS</Text>
+        </View>
+      </View>
       <View style={styles.nav} lightColor="transparent" darkColor="transparent">
         <Link href="/estimate" style={styles.navLink}>
           見積書
@@ -35,17 +45,47 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 960,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: '#dbeafe',
     borderRadius: 8,
     backgroundColor: '#ffffff',
     gap: 12,
-    paddingHorizontal: 15,
-    paddingVertical: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 15,
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.05,
+    shadowRadius: 20,
+    elevation: 2,
+  },
+  brandRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 10,
+  },
+  logoMark: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 38,
+    height: 38,
+    borderRadius: 8,
+    backgroundColor: '#2563eb',
+  },
+  logoMarkText: {
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  brandCopy: {
+    gap: 1,
   },
   logo: {
-    color: '#111827',
+    color: '#0f172a',
     fontSize: 20,
     fontWeight: '900',
+  },
+  tagline: {
+    color: '#64748b',
+    fontSize: 12,
+    fontWeight: '700',
   },
   nav: {
     flexDirection: 'row',
