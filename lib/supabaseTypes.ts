@@ -77,14 +77,11 @@ export type Database = {
           id: string;
           user_id: string;
           customer_id: string | null;
-          customer_name: string;
           name: string;
           amount: number;
-          status: 'before_estimate' | 'estimated' | 'invoiced' | 'paid';
+          status: 'draft' | 'estimated' | 'invoiced' | 'paid';
           memo: string | null;
           due_date: string;
-          estimate_id: string | null;
-          invoice_id: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -92,14 +89,11 @@ export type Database = {
           id?: string;
           user_id: string;
           customer_id?: string | null;
-          customer_name: string;
           name: string;
           amount?: number;
-          status?: 'before_estimate' | 'estimated' | 'invoiced' | 'paid';
+          status?: 'draft' | 'estimated' | 'invoiced' | 'paid';
           memo?: string | null;
           due_date: string;
-          estimate_id?: string | null;
-          invoice_id?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -107,14 +101,11 @@ export type Database = {
           id?: string;
           user_id?: string;
           customer_id?: string | null;
-          customer_name?: string;
           name?: string;
           amount?: number;
-          status?: 'before_estimate' | 'estimated' | 'invoiced' | 'paid';
+          status?: 'draft' | 'estimated' | 'invoiced' | 'paid';
           memo?: string | null;
           due_date?: string;
-          estimate_id?: string | null;
-          invoice_id?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -124,20 +115,6 @@ export type Database = {
             columns: ['customer_id'];
             isOneToOne: false;
             referencedRelation: 'customers';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'projects_estimate_id_fkey';
-            columns: ['estimate_id'];
-            isOneToOne: false;
-            referencedRelation: 'estimates';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'projects_invoice_id_fkey';
-            columns: ['invoice_id'];
-            isOneToOne: false;
-            referencedRelation: 'invoices';
             referencedColumns: ['id'];
           },
         ];

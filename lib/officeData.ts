@@ -38,7 +38,7 @@ export type InvoiceRecord = {
   paidAt?: string;
 };
 
-export type ProjectStatus = 'before_estimate' | 'estimated' | 'invoiced' | 'paid';
+export type ProjectStatus = 'draft' | 'estimated' | 'invoiced' | 'paid';
 
 export type ProjectRecord = {
   id: string;
@@ -49,8 +49,6 @@ export type ProjectRecord = {
   status: ProjectStatus;
   memo: string;
   dueDate: string;
-  estimateId?: string;
-  invoiceId?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -180,8 +178,6 @@ export const mockProjectRecords: ProjectRecord[] = [
     status: 'invoiced',
     memo: '請求済み。7月10日入金予定。',
     dueDate: '2026-07-10',
-    estimateId: 'est_20260601_001',
-    invoiceId: 'inv_20260610_001',
     createdAt: '2026-06-01',
     updatedAt: '2026-06-10',
   },
@@ -194,7 +190,6 @@ export const mockProjectRecords: ProjectRecord[] = [
     status: 'estimated',
     memo: '見積送付済み。正式発注待ち。',
     dueDate: '2026-07-05',
-    estimateId: 'est_20260607_001',
     createdAt: '2026-06-07',
     updatedAt: '2026-06-07',
   },
@@ -207,8 +202,6 @@ export const mockProjectRecords: ProjectRecord[] = [
     status: 'paid',
     memo: '入金確認済み。翌月分の継続提案あり。',
     dueDate: '2026-07-15',
-    estimateId: 'est_20260614_001',
-    invoiceId: 'inv_20260615_001',
     createdAt: '2026-06-14',
     updatedAt: '2026-06-19',
   },
@@ -218,7 +211,7 @@ export const mockProjectRecords: ProjectRecord[] = [
     customerId: 'cus_001',
     customerName: '株式会社サンプル',
     amount: 320000,
-    status: 'before_estimate',
+    status: 'draft',
     memo: '要件ヒアリング後に見積作成予定。',
     dueDate: '2026-06-28',
     createdAt: '2026-06-18',
@@ -266,11 +259,9 @@ export const supabaseTableDefinitions: SupabaseTableDefinition[] = [
       { name: 'customer_name', type: 'text not null', note: '保存時点の顧客名' },
       { name: 'name', type: 'text not null', note: '案件名' },
       { name: 'amount', type: 'numeric not null default 0', note: '案件金額' },
-      { name: 'status', type: 'text not null default before_estimate', note: 'before_estimate/estimated/invoiced/paid' },
+      { name: 'status', type: 'text not null default draft', note: 'draft/estimated/invoiced/paid' },
       { name: 'memo', type: 'text', note: '案件メモ' },
       { name: 'due_date', type: 'date', note: '期限または入金予定日' },
-      { name: 'estimate_id', type: 'text references estimates(id)', note: '紐付く見積ID' },
-      { name: 'invoice_id', type: 'text references invoices(id)', note: '紐付く請求書ID' },
       { name: 'created_at', type: 'timestamptz', note: '作成日時' },
       { name: 'updated_at', type: 'timestamptz', note: '更新日時' },
     ],
@@ -332,7 +323,7 @@ export function isThisMonth(dateString: string, today = new Date()) {
 
 export function getProjectStatusLabel(status: ProjectStatus) {
   const labels: Record<ProjectStatus, string> = {
-    before_estimate: '見積前',
+    draft: '見積前',
     estimated: '見積済み',
     invoiced: '請求済み',
     paid: '入金済み',

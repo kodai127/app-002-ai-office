@@ -12,30 +12,21 @@ import {
   formatCurrency,
   getProjectStatusLabel,
   isOverdue,
-  isThisMonth,
   mockCustomers,
   mockEstimateRecords,
   mockInvoiceRecords,
-  mockProjectRecords,
+  ProjectRecord,
 } from '@/lib/officeData';
 import {
   BillingProfile,
   fetchEstimateRecords,
   fetchInvoiceRecords,
   fetchOrCreateProfile,
+  fetchProjectRecords,
   fetchUsageSummary,
+  summarizeProjects,
   UsageSummary,
 } from '@/lib/supabaseRepositories';
-
-const monthlyProjectRevenue = mockProjectRecords
-  .filter((project) => project.status === 'paid' && isThisMonth(project.updatedAt))
-  .reduce((total, project) => total + project.amount, 0);
-const outstandingProjectAmount = mockProjectRecords
-  .filter((project) => project.status === 'invoiced')
-  .reduce((total, project) => total + project.amount, 0);
-const activeProjectCount = mockProjectRecords.filter((project) => project.status !== 'paid').length;
-const invoicedProjectCount = mockProjectRecords.filter((project) => project.status === 'invoiced').length;
-const paidProjectCount = mockProjectRecords.filter((project) => project.status === 'paid').length;
 
 const sampleEstimateParams = {
   customerName: '株式会社サンプル',
@@ -124,10 +115,14 @@ export default function HomeScreen() {
   const [contactMessage, setContactMessage] = useState('');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<BillingProfile | null>(null);
+  const [projectStatusMessage, setProjectStatusMessage] = useState('ログインすると案件ダッシュボードを表示できます。');
+  const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [usageSummary, setUsageSummary] = useState<UsageSummary | null>(null);
   const [estimateCount, setEstimateCount] = useState(mockEstimateRecords.length);
   const [invoiceCount, setInvoiceCount] = useState(mockInvoiceRecords.length);
   const proPlan = billingPlans.find((plan) => plan.key === 'pro');
+  const projectSummary = useMemo(() => summarizeProjects(projects), [projects]);
+  const unpaidProjects = useMemo(() => projects.filter((project) => project.status === 'invoiced'), [projects]);
   const contactUrl = useMemo(() => {
     const body = [
       `お名前: ${contactName}`,
@@ -164,13 +159,15 @@ export default function HomeScreen() {
         setUsageSummary(usage);
 
         if (!authUser) {
+          setProjectStatusMessage('ログインすると案件ダッシュボードを表示できます。');
           return;
         }
 
-        const [nextProfile, estimates, invoices] = await Promise.all([
+        const [nextProfile, estimates, invoices, nextProjects] = await Promise.all([
           fetchOrCreateProfile(),
           fetchEstimateRecords(),
           fetchInvoiceRecords(),
+          fetchProjectRecords(),
         ]);
 
         if (!isMounted) {
@@ -180,9 +177,12 @@ export default function HomeScreen() {
         setProfile(nextProfile);
         setEstimateCount(estimates.length);
         setInvoiceCount(invoices.length);
+        setProjects(nextProjects);
+        setProjectStatusMessage(nextProjects.length > 0 ? 'Supabaseから案件を集計しています。' : 'まだ保存済み案件はありません。');
       } catch {
         if (isMounted) {
           setUsageSummary((currentSummary) => currentSummary ?? null);
+          setProjectStatusMessage('案件の読み込みに失敗しました。ログイン状態とSupabase設定を確認してください。');
         }
       }
     }
@@ -222,13 +222,18 @@ export default function HomeScreen() {
             <View style={styles.dashboardGrid} lightColor="transparent" darkColor="transparent">
               <DashboardCard
                 label="今月売上"
-                value={formatCurrency(monthlyProjectRevenue)}
+                value={formatCurrency(projectSummary.monthlyRevenue)}
                 note="入金済み案件"
               />
-              <DashboardCard label="未入金額" value={formatCurrency(outstandingProjectAmount)} note="請求済み・未入金" danger />
-              <DashboardCard label="進行中案件" value={`${activeProjectCount}件`} note="入金前の案件" />
-              <DashboardCard label="請求済み件数" value={`${invoicedProjectCount}件`} note="入金待ち" />
-              <DashboardCard label="入金済み件数" value={`${paidProjectCount}件`} note="完了案件" />
+              <DashboardCard
+                label="未入金額"
+                value={formatCurrency(projectSummary.outstandingAmount)}
+                note="請求済み・未入金"
+                danger
+              />
+              <DashboardCard label="進行中案件" value={`${projectSummary.activeCount}件`} note="入金前の案件" />
+              <DashboardCard label="請求済み件数" value={`${projectSummary.invoicedCount}件`} note="入金待ち" />
+              <DashboardCard label="入金済み件数" value={`${projectSummary.paidCount}件`} note="完了案件" />
               <DashboardCard
                 label="無料枠残数"
                 value={usageSummary?.remaining === null ? '無制限' : `${usageSummary?.remaining ?? 3}回`}
@@ -243,6 +248,7 @@ export default function HomeScreen() {
                 案件から見積を作成
               </Link>
             </View>
+            <Text style={styles.microCopy}>{projectStatusMessage}</Text>
           </View>
 
           <View style={styles.hero} lightColor="transparent" darkColor="transparent">
@@ -294,16 +300,16 @@ export default function HomeScreen() {
               <Text style={styles.previewLabel}>案件ボード</Text>
               <View style={styles.previewRow} lightColor="transparent" darkColor="transparent">
                 <Text style={styles.previewTitle}>コーポレートサイト改善</Text>
-                <Text style={styles.previewAmount}>{formatCurrency(outstandingProjectAmount)}</Text>
+                <Text style={styles.previewAmount}>{formatCurrency(projectSummary.outstandingAmount)}</Text>
               </View>
               <View style={styles.previewDivider} />
               <View style={styles.previewMetrics} lightColor="transparent" darkColor="transparent">
                 <View style={styles.previewMetric} lightColor="transparent" darkColor="transparent">
-                  <Text style={styles.previewMetricValue}>{invoicedProjectCount}件</Text>
+                  <Text style={styles.previewMetricValue}>{projectSummary.invoicedCount}件</Text>
                   <Text style={styles.previewMetricLabel}>未入金</Text>
                 </View>
                 <View style={styles.previewMetric} lightColor="transparent" darkColor="transparent">
-                  <Text style={styles.previewMetricValue}>{activeProjectCount}件</Text>
+                  <Text style={styles.previewMetricValue}>{projectSummary.activeCount}件</Text>
                   <Text style={styles.previewMetricLabel}>進行中</Text>
                 </View>
               </View>
@@ -316,25 +322,27 @@ export default function HomeScreen() {
               <Text style={styles.panelTitle}>未入金一覧</Text>
               <Text style={styles.panelMeta}>請求済みで入金待ちの案件を優先表示します。</Text>
             </View>
-            {mockProjectRecords
-              .filter((project) => project.status === 'invoiced')
-              .map((project) => (
-                <View key={project.id} style={styles.projectRow} lightColor="transparent" darkColor="transparent">
-                  <View style={styles.rowBody} lightColor="transparent" darkColor="transparent">
-                    <Text style={styles.rowTitle}>{project.name}</Text>
-                    <Text style={styles.rowSub}>
-                      {project.customerName} / 期限 {project.dueDate}
-                      {isOverdue(project.dueDate) ? ' / 期限超過' : ''}
-                    </Text>
+            {unpaidProjects.length > 0 ? (
+              unpaidProjects.map((project) => (
+                  <View key={project.id} style={styles.projectRow} lightColor="transparent" darkColor="transparent">
+                    <View style={styles.rowBody} lightColor="transparent" darkColor="transparent">
+                      <Text style={styles.rowTitle}>{project.name}</Text>
+                      <Text style={styles.rowSub}>
+                        {project.customerName} / 期限 {project.dueDate}
+                        {isOverdue(project.dueDate) ? ' / 期限超過' : ''}
+                      </Text>
+                    </View>
+                    <View style={styles.rowSide} lightColor="transparent" darkColor="transparent">
+                      <Text style={styles.rowAmount}>{formatCurrency(project.amount)}</Text>
+                      <Link href={'/projects' as never} style={styles.status}>
+                        入金確認
+                      </Link>
+                    </View>
                   </View>
-                  <View style={styles.rowSide} lightColor="transparent" darkColor="transparent">
-                    <Text style={styles.rowAmount}>{formatCurrency(project.amount)}</Text>
-                    <Link href={'/projects' as never} style={styles.status}>
-                      入金確認
-                    </Link>
-                  </View>
-                </View>
-              ))}
+                ))
+            ) : (
+              <Text style={styles.rowSub}>未入金の案件はありません。</Text>
+            )}
           </View>
 
           <View style={styles.panel}>
@@ -342,18 +350,22 @@ export default function HomeScreen() {
               <Text style={styles.panelTitle}>案件カード</Text>
               <Text style={styles.panelMeta}>案件ステータスを見積前、見積済み、請求済み、入金済みで管理します。</Text>
             </View>
-            {mockProjectRecords.slice(0, 3).map((project) => (
-              <View key={project.id} style={styles.projectRow} lightColor="transparent" darkColor="transparent">
-                <View style={styles.rowBody} lightColor="transparent" darkColor="transparent">
-                  <Text style={styles.rowTitle}>{project.name}</Text>
-                  <Text style={styles.rowSub}>{project.customerName}</Text>
+            {projects.length > 0 ? (
+              projects.slice(0, 3).map((project) => (
+                <View key={project.id} style={styles.projectRow} lightColor="transparent" darkColor="transparent">
+                  <View style={styles.rowBody} lightColor="transparent" darkColor="transparent">
+                    <Text style={styles.rowTitle}>{project.name}</Text>
+                    <Text style={styles.rowSub}>{project.customerName}</Text>
+                  </View>
+                  <View style={styles.rowSide} lightColor="transparent" darkColor="transparent">
+                    <Text style={styles.rowAmount}>{formatCurrency(project.amount)}</Text>
+                    <Text style={styles.status}>{getProjectStatusLabel(project.status)}</Text>
+                  </View>
                 </View>
-                <View style={styles.rowSide} lightColor="transparent" darkColor="transparent">
-                  <Text style={styles.rowAmount}>{formatCurrency(project.amount)}</Text>
-                  <Text style={styles.status}>{getProjectStatusLabel(project.status)}</Text>
-                </View>
-              </View>
-            ))}
+              ))
+            ) : (
+              <Text style={styles.rowSub}>案件画面から最初の案件を保存してください。</Text>
+            )}
           </View>
 
           <View style={styles.panel}>
@@ -385,8 +397,8 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.kpiGrid} lightColor="transparent" darkColor="transparent">
-            <KpiCard label="今月売上" value={formatCurrency(monthlyProjectRevenue)} trend="入金済み案件" />
-            <KpiCard label="未入金額" value={formatCurrency(outstandingProjectAmount)} trend="請求済み・入金待ち" />
+            <KpiCard label="今月売上" value={formatCurrency(projectSummary.monthlyRevenue)} trend="入金済み案件" />
+            <KpiCard label="未入金額" value={formatCurrency(projectSummary.outstandingAmount)} trend="請求済み・入金待ち" />
             <KpiCard label="顧客数" value={`${mockCustomers.length}社`} trend="案件画面から確認可能" />
           </View>
 

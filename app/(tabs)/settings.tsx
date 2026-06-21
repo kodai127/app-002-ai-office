@@ -20,7 +20,6 @@ import {
   mockCustomers,
   mockEstimateRecords,
   mockInvoiceRecords,
-  mockProjectRecords,
   ProjectRecord,
   supabaseTableDefinitions,
 } from '@/lib/officeData';
@@ -33,7 +32,9 @@ import {
   fetchEstimateRecords,
   fetchInvoiceRecords,
   fetchUsageSummary,
+  fetchProjectRecords,
   UsageSummary,
+  updateProjectStatus,
   upsertCustomer,
 } from '@/lib/supabaseRepositories';
 
@@ -64,7 +65,7 @@ export default function SettingsScreen() {
   const params = useLocalSearchParams<{ checkout?: string; tab?: string }>();
   const [activeTab, setActiveTab] = useState<TabKey>('dashboard');
   const [customers, setCustomers] = useState<Customer[]>(mockCustomers);
-  const [projects, setProjects] = useState<ProjectRecord[]>(mockProjectRecords);
+  const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [estimateRecords, setEstimateRecords] = useState<EstimateRecord[]>(mockEstimateRecords);
   const [invoiceRecords, setInvoiceRecords] = useState<InvoiceRecord[]>(mockInvoiceRecords);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -106,10 +107,11 @@ export default function SettingsScreen() {
           return;
         }
 
-        const [dbCustomers, dbEstimates, dbInvoices, nextProfile] = await Promise.all([
+        const [dbCustomers, dbEstimates, dbInvoices, dbProjects, nextProfile] = await Promise.all([
           fetchCustomers(),
           fetchEstimateRecords(),
           fetchInvoiceRecords(),
+          fetchProjectRecords(),
           fetchOrCreateProfile(),
         ]);
 
@@ -121,6 +123,7 @@ export default function SettingsScreen() {
           setCustomers(dbCustomers);
           setEditingCustomerId(dbCustomers[0].id);
         }
+        setProjects(dbProjects);
         setEstimateRecords(dbEstimates.length > 0 ? dbEstimates : mockEstimateRecords);
         setInvoiceRecords(dbInvoices.length > 0 ? dbInvoices : mockInvoiceRecords);
         setProfile(nextProfile);
@@ -284,21 +287,19 @@ export default function SettingsScreen() {
     }
   };
 
-  const handleMarkProjectPaid = (projectId: string) => {
-    const today = new Date().toISOString().slice(0, 10);
+  const handleMarkProjectPaid = async (projectId: string) => {
+    setSyncStatus('案件を入金済みに更新しています...');
 
-    setProjects((currentProjects) =>
-      currentProjects.map((project) =>
-        project.id === projectId
-          ? {
-              ...project,
-              status: 'paid',
-              updatedAt: today,
-            }
-          : project
-      )
-    );
-    setSyncStatus('案件を入金済みに変更しました。');
+    try {
+      const updatedProject = await updateProjectStatus(projectId, 'paid');
+      setProjects((currentProjects) =>
+        currentProjects.map((project) => (project.id === updatedProject.id ? updatedProject : project))
+      );
+      setSyncStatus('案件を入金済みに変更しました。');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '案件の更新に失敗しました。';
+      setSyncStatus(message);
+    }
   };
 
   return (

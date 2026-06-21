@@ -1,7 +1,7 @@
-import { Customer, EstimateRecord, InvoiceRecord } from './officeData';
+import { Customer, EstimateRecord, InvoiceRecord, ProjectRecord, ProjectStatus } from './officeData';
 import { getCurrentUser } from './auth';
 import { isSupabaseConfigured, supabase } from './supabaseClient';
-import { CustomerRow, EstimateRow, InvoiceRow, ProfileRow } from './supabaseTypes';
+import { CustomerRow, EstimateRow, InvoiceRow, ProfileRow, ProjectRow } from './supabaseTypes';
 
 function assertSupabase() {
   if (!isSupabaseConfigured || !supabase) {
@@ -111,6 +111,14 @@ export type UsageSummary = {
   remaining: number | null;
   subscriptionStatus: string;
   used: number;
+};
+
+export type ProjectDashboardSummary = {
+  activeCount: number;
+  invoicedCount: number;
+  monthlyRevenue: number;
+  outstandingAmount: number;
+  paidCount: number;
 };
 
 function getCurrentMonthRange() {
@@ -296,6 +304,29 @@ export function mapInvoiceRow(row: InvoiceRow): InvoiceRecord {
   };
 }
 
+export function mapProjectRow(row: ProjectRow, customerName = '顧客未設定'): ProjectRecord {
+  return {
+    id: row.id,
+    customerId: row.customer_id ?? '',
+    customerName,
+    name: row.name,
+    amount: row.amount,
+    status: row.status,
+    memo: row.memo ?? '',
+    dueDate: row.due_date,
+    createdAt: row.created_at.slice(0, 10),
+    updatedAt: row.updated_at.slice(0, 10),
+  };
+}
+
+type ProjectRowWithCustomer = ProjectRow & {
+  customers?: Pick<CustomerRow, 'name'> | null;
+};
+
+function mapProjectRowWithCustomer(row: ProjectRowWithCustomer): ProjectRecord {
+  return mapProjectRow(row, row.customers?.name ?? '顧客未設定');
+}
+
 export async function fetchCustomers() {
   const client = assertSupabase();
   const userId = await requireUserId();
@@ -310,6 +341,116 @@ export async function fetchCustomers() {
   }
 
   return data.map(mapCustomerRow);
+}
+
+export async function fetchProjectRecords() {
+  const client = assertSupabase();
+  const userId = await requireUserId();
+  const { data, error } = await client
+    .from('projects')
+    .select('*, customers(name)')
+    .eq('user_id', userId)
+    .order('updated_at', { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  return (data as ProjectRowWithCustomer[]).map(mapProjectRowWithCustomer);
+}
+
+export async function upsertProject(record: {
+  amount: number;
+  customerId: string;
+  dueDate: string;
+  id?: string;
+  memo: string;
+  name: string;
+  status?: ProjectStatus;
+}) {
+  const client = assertSupabase();
+  const userId = await requireUserId();
+  const now = new Date().toISOString();
+  const { data, error } = await client
+    .from('projects')
+    .upsert(
+      {
+        id: record.id || createId('prj'),
+        user_id: userId,
+        customer_id: toNullable(record.customerId),
+        name: record.name || '新規案件',
+        amount: Number.isFinite(record.amount) ? record.amount : 0,
+        status: record.status ?? 'draft',
+        memo: toNullable(record.memo),
+        due_date: record.dueDate || new Date().toISOString().slice(0, 10),
+        created_at: record.id ? undefined : now,
+        updated_at: now,
+      },
+      { onConflict: 'id' }
+    )
+    .select('*, customers(name)')
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return mapProjectRowWithCustomer(data as ProjectRowWithCustomer);
+}
+
+export async function updateProjectStatus(projectId: string, status: ProjectStatus) {
+  const client = assertSupabase();
+  const userId = await requireUserId();
+  const { data, error } = await client
+    .from('projects')
+    .update({
+      status,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', projectId)
+    .eq('user_id', userId)
+    .select('*, customers(name)')
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return mapProjectRowWithCustomer(data as ProjectRowWithCustomer);
+}
+
+export async function deleteProjectRecord(projectId: string) {
+  const client = assertSupabase();
+  const userId = await requireUserId();
+  const { error } = await client.from('projects').delete().eq('id', projectId).eq('user_id', userId);
+
+  if (error) {
+    throw error;
+  }
+}
+
+export function summarizeProjects(projects: ProjectRecord[], today = new Date()): ProjectDashboardSummary {
+  const monthlyRevenue = projects
+    .filter((project) => {
+      const updatedAt = new Date(`${project.updatedAt}T00:00:00`);
+
+      return (
+        project.status === 'paid' &&
+        updatedAt.getFullYear() === today.getFullYear() &&
+        updatedAt.getMonth() === today.getMonth()
+      );
+    })
+    .reduce((total, project) => total + project.amount, 0);
+
+  return {
+    activeCount: projects.filter((project) => project.status !== 'paid').length,
+    invoicedCount: projects.filter((project) => project.status === 'invoiced').length,
+    monthlyRevenue,
+    outstandingAmount: projects
+      .filter((project) => project.status === 'invoiced')
+      .reduce((total, project) => total + project.amount, 0),
+    paidCount: projects.filter((project) => project.status === 'paid').length,
+  };
 }
 
 export async function upsertCustomer(customer: Customer) {
