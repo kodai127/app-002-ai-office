@@ -58,7 +58,7 @@ function throwSupabaseError(context: string, error: unknown, payload?: unknown):
   throw new Error(`${context}: ${formatSupabaseError(error)}${payloadText}`);
 }
 
-function isMissingCustomerNameColumn(error: unknown) {
+function isMissingColumn(error: unknown, columnName: string) {
   if (!error || typeof error !== 'object') {
     return false;
   }
@@ -67,8 +67,12 @@ function isMissingCustomerNameColumn(error: unknown) {
 
   return (
     (supabaseError.code === '42703' || supabaseError.code === 'PGRST204') &&
-    Boolean(supabaseError.message?.includes('customer_name'))
+    Boolean(supabaseError.message?.includes(columnName))
   );
+}
+
+function isMissingCustomerNameColumn(error: unknown) {
+  return isMissingColumn(error, 'customer_name');
 }
 
 async function requireUserId() {
@@ -387,7 +391,25 @@ export async function fetchCustomers() {
     .order('updated_at', { ascending: false });
 
   if (error) {
-    throw error;
+    if (isMissingColumn(error, 'user_id')) {
+      console.error('customers.user_id列が未適用のため、user_id条件なしで顧客一覧を取得します', {
+        error,
+        userId,
+      });
+
+      const { data: fallbackData, error: fallbackError } = await client
+        .from('customers')
+        .select('*')
+        .order('updated_at', { ascending: false });
+
+      if (fallbackError) {
+        throwSupabaseError('顧客一覧の取得に失敗しました', fallbackError, { userId });
+      }
+
+      return fallbackData.map(mapCustomerRow);
+    }
+
+    throwSupabaseError('顧客一覧の取得に失敗しました', error, { userId });
   }
 
   return data.map(mapCustomerRow);
@@ -530,34 +552,78 @@ export function summarizeProjects(projects: ProjectRecord[], today = new Date())
 
 export async function upsertCustomer(customer: Customer) {
   const client = assertSupabase();
-  await assertPaidCustomerManagement();
   const userId = await requireUserId();
   const now = new Date().toISOString();
+  const payload = {
+    id: customer.id || createId('cus'),
+    user_id: userId,
+    name: customer.name || '新規顧客',
+    contact_name: toNullable(customer.contactName),
+    email: toNullable(customer.email),
+    phone: toNullable(customer.phone),
+    address: toNullable(customer.address),
+    memo: toNullable(customer.memo),
+    created_at: customer.createdAt ? `${customer.createdAt}T00:00:00.000Z` : now,
+    updated_at: now,
+  };
   const { data, error } = await client
     .from('customers')
-    .upsert(
-      {
-        id: customer.id || createId('cus'),
-        user_id: userId,
-        name: customer.name || '新規顧客',
-        contact_name: toNullable(customer.contactName),
-        email: toNullable(customer.email),
-        phone: toNullable(customer.phone),
-        address: toNullable(customer.address),
-        memo: toNullable(customer.memo),
-        created_at: customer.createdAt ? `${customer.createdAt}T00:00:00.000Z` : now,
-        updated_at: now,
-      },
-      { onConflict: 'id' }
-    )
+    .upsert(payload, { onConflict: 'id' })
     .select()
     .single();
 
   if (error) {
-    throw error;
+    if (isMissingColumn(error, 'user_id')) {
+      const { user_id: _userId, ...fallbackPayload } = payload;
+
+      console.error('customers.user_id列が未適用のため、user_idなしで顧客保存を再試行します', {
+        error,
+        payload,
+      });
+
+      const { data: fallbackData, error: fallbackError } = await client
+        .from('customers')
+        .upsert(fallbackPayload as never, { onConflict: 'id' })
+        .select()
+        .single();
+
+      if (fallbackError) {
+        throwSupabaseError('顧客の保存に失敗しました', fallbackError, fallbackPayload);
+      }
+
+      return mapCustomerRow(fallbackData);
+    }
+
+    throwSupabaseError('顧客の保存に失敗しました', error, payload);
   }
 
   return mapCustomerRow(data);
+}
+
+export async function deleteCustomerRecord(customerId: string) {
+  const client = assertSupabase();
+  const userId = await requireUserId();
+  const { error } = await client.from('customers').delete().eq('id', customerId).eq('user_id', userId);
+
+  if (error) {
+    if (isMissingColumn(error, 'user_id')) {
+      console.error('customers.user_id列が未適用のため、id条件のみで顧客削除を再試行します', {
+        customerId,
+        error,
+        userId,
+      });
+
+      const { error: fallbackError } = await client.from('customers').delete().eq('id', customerId);
+
+      if (fallbackError) {
+        throwSupabaseError('顧客の削除に失敗しました', fallbackError, { customerId });
+      }
+
+      return;
+    }
+
+    throwSupabaseError('顧客の削除に失敗しました', error, { customerId, userId });
+  }
 }
 
 export async function fetchEstimateRecords() {
