@@ -32,6 +32,9 @@ export function AppHeader() {
         <Link href="/invoice" style={styles.navLink}>
           請求
         </Link>
+        <Link href={'/pricing' as never} style={styles.navLink}>
+          料金
+        </Link>
         <Link href="/settings" style={styles.navLink}>
           設定
         </Link>
@@ -97,22 +100,24 @@ const styles = StyleSheet.create({
   },
   navLink: {
     overflow: 'hidden',
+    minHeight: 44,
     borderRadius: 999,
     backgroundColor: '#f8fafc',
     color: '#334155',
     fontSize: 14,
     fontWeight: '900',
     paddingHorizontal: 11,
-    paddingVertical: 9,
+    paddingVertical: 11,
   },
   loginLink: {
     overflow: 'hidden',
+    minHeight: 44,
     borderRadius: 999,
     backgroundColor: '#2563eb',
     color: '#ffffff',
     fontSize: 14,
     fontWeight: '900',
     paddingHorizontal: 13,
-    paddingVertical: 9,
+    paddingVertical: 11,
   },
 });

@@ -124,7 +124,9 @@ export default function ProjectDetailScreen() {
         <View style={styles.content} lightColor="transparent" darkColor="transparent">
           <View style={styles.hero}>
             <Text style={styles.eyebrow}>Project Detail</Text>
-            <Text style={styles.title}>{project?.name ?? '案件詳細'}</Text>
+            <Text style={styles.title} numberOfLines={3} ellipsizeMode="tail">
+              {project?.name ?? '案件詳細'}
+            </Text>
             <Text style={styles.description}>
               案件単位で、顧客・金額・見積・請求・入金・期限を確認できます。
             </Text>
@@ -320,6 +322,7 @@ const styles = StyleSheet.create({
   metricCard: {
     flexBasis: 150,
     flexGrow: 1,
+    minWidth: 0,
     borderWidth: 1,
     borderColor: '#dbeafe',
     borderRadius: 8,
@@ -334,7 +337,7 @@ const styles = StyleSheet.create({
   },
   metricValue: {
     color: '#0f172a',
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '900',
     lineHeight: 24,
   },
@@ -378,6 +381,7 @@ const styles = StyleSheet.create({
   },
   primaryLink: {
     overflow: 'hidden',
+    minHeight: 48,
     borderRadius: 8,
     backgroundColor: '#2563eb',
     color: '#ffffff',
@@ -389,6 +393,7 @@ const styles = StyleSheet.create({
   },
   secondaryLink: {
     overflow: 'hidden',
+    minHeight: 48,
     borderWidth: 1,
     borderColor: '#dbeafe',
     borderRadius: 8,
@@ -402,6 +407,8 @@ const styles = StyleSheet.create({
   },
   paidButton: {
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
     borderRadius: 8,
     backgroundColor: '#16a34a',
     paddingHorizontal: 16,
@@ -414,6 +421,7 @@ const styles = StyleSheet.create({
   },
   backLink: {
     overflow: 'hidden',
+    minHeight: 44,
     color: '#2563eb',
     fontSize: 15,
     fontWeight: '900',

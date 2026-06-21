@@ -347,7 +347,9 @@ export default function HomeScreen() {
               sortedUnpaidProjects.map((project) => (
                   <View key={project.id} style={styles.projectRow} lightColor="transparent" darkColor="transparent">
                     <View style={styles.rowBody} lightColor="transparent" darkColor="transparent">
-                      <Text style={styles.rowTitle}>{project.name}</Text>
+                      <Text style={styles.rowTitle} numberOfLines={2} ellipsizeMode="tail">
+                        {project.name}
+                      </Text>
                       <Text style={styles.rowSub}>
                         {project.customerName} / 期限 {project.dueDate}
                         {isOverdue(project.dueDate) ? ' / 期限超過' : ''}
@@ -375,8 +377,12 @@ export default function HomeScreen() {
               projects.slice(0, 3).map((project) => (
                 <View key={project.id} style={styles.projectRow} lightColor="transparent" darkColor="transparent">
                   <View style={styles.rowBody} lightColor="transparent" darkColor="transparent">
-                    <Text style={styles.rowTitle}>{project.name}</Text>
-                    <Text style={styles.rowSub}>{project.customerName}</Text>
+                    <Text style={styles.rowTitle} numberOfLines={2} ellipsizeMode="tail">
+                      {project.name}
+                    </Text>
+                    <Text style={styles.rowSub} numberOfLines={2} ellipsizeMode="tail">
+                      {project.customerName}
+                    </Text>
                   </View>
                   <View style={styles.rowSide} lightColor="transparent" darkColor="transparent">
                     <Text style={styles.rowAmount}>{formatCurrency(project.amount)}</Text>
@@ -752,6 +758,7 @@ const styles = StyleSheet.create({
   },
   dashboardPrimaryLink: {
     overflow: 'hidden',
+    minHeight: 48,
     borderRadius: 8,
     backgroundColor: '#2563eb',
     color: '#ffffff',
@@ -763,6 +770,7 @@ const styles = StyleSheet.create({
   },
   dashboardSecondaryLink: {
     overflow: 'hidden',
+    minHeight: 48,
     borderWidth: 1,
     borderColor: '#cbd5e1',
     borderRadius: 8,
@@ -855,6 +863,8 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
     borderRadius: 8,
     backgroundColor: '#2563eb',
     paddingHorizontal: 16,
@@ -866,6 +876,7 @@ const styles = StyleSheet.create({
   },
   primaryLink: {
     overflow: 'hidden',
+    minHeight: 48,
     borderRadius: 8,
     backgroundColor: '#2563eb',
     color: '#ffffff',
@@ -939,6 +950,7 @@ const styles = StyleSheet.create({
   },
   secondaryLink: {
     overflow: 'hidden',
+    minHeight: 48,
     borderWidth: 1,
     borderColor: '#cbd5e1',
     borderRadius: 8,
@@ -1059,6 +1071,7 @@ const styles = StyleSheet.create({
   },
   projectRow: {
     alignItems: 'flex-start',
+    width: '100%',
     borderWidth: 1,
     borderColor: '#dbeafe',
     borderRadius: 8,
@@ -1108,6 +1121,8 @@ const styles = StyleSheet.create({
   },
   planButton: {
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
     borderRadius: 8,
     backgroundColor: '#2563eb',
     paddingHorizontal: 14,
@@ -1118,6 +1133,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   rowBody: {
+    width: '100%',
     gap: 2,
   },
   rowTitle: {
@@ -1131,12 +1147,14 @@ const styles = StyleSheet.create({
   },
   rowSide: {
     alignItems: 'flex-start',
+    width: '100%',
     gap: 3,
   },
   rowAmount: {
     color: '#111827',
     fontSize: 15,
     fontWeight: '800',
+    lineHeight: 21,
   },
   status: {
     color: '#2563eb',
@@ -1221,6 +1239,8 @@ const styles = StyleSheet.create({
   },
   contactButton: {
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
     borderRadius: 8,
     backgroundColor: '#2563eb',
     paddingHorizontal: 16,
@@ -1245,5 +1265,6 @@ const styles = StyleSheet.create({
     color: '#2563eb',
     fontSize: 15,
     fontWeight: '800',
+    minHeight: 44,
   },
 });

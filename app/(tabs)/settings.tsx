@@ -412,8 +412,12 @@ export default function SettingsScreen() {
                 <View key={project.id} style={[styles.projectCard, overdue ? styles.overdueProjectCard : undefined]}>
                   <View style={styles.projectHeader} lightColor="transparent" darkColor="transparent">
                     <View style={styles.rowBody} lightColor="transparent" darkColor="transparent">
-                      <Text style={styles.rowTitle}>{project.name}</Text>
-                      <Text style={styles.rowSub}>{project.customerName}</Text>
+                      <Text style={styles.rowTitle} numberOfLines={2} ellipsizeMode="tail">
+                        {project.name}
+                      </Text>
+                      <Text style={styles.rowSub} numberOfLines={2} ellipsizeMode="tail">
+                        {project.customerName}
+                      </Text>
                     </View>
                     <Text style={[styles.statusBadge, overdue ? styles.overdueBadge : undefined]}>
                       {getProjectStatusLabel(project.status)}
@@ -1052,6 +1056,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   projectCard: {
+    width: '100%',
     borderWidth: 1,
     borderColor: '#dbeafe',
     borderRadius: 8,
@@ -1103,6 +1108,7 @@ const styles = StyleSheet.create({
   },
   secondaryLink: {
     overflow: 'hidden',
+    minHeight: 48,
     borderWidth: 1,
     borderColor: '#dbeafe',
     borderRadius: 8,
@@ -1111,22 +1117,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '900',
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: 14,
     textAlign: 'center',
   },
   primaryLink: {
     overflow: 'hidden',
+    minHeight: 48,
     borderRadius: 8,
     backgroundColor: '#2563eb',
     color: '#ffffff',
     fontSize: 14,
     fontWeight: '900',
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: 14,
     textAlign: 'center',
   },
   paidButton: {
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
     borderRadius: 8,
     backgroundColor: '#16a34a',
     paddingHorizontal: 14,

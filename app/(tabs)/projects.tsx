@@ -480,8 +480,12 @@ function ProjectCard({
     <View style={[styles.projectCard, overdue ? styles.overdueCard : undefined]}>
       <View style={styles.projectTop} lightColor="transparent" darkColor="transparent">
         <View style={styles.projectTitleBlock} lightColor="transparent" darkColor="transparent">
-          <Text style={styles.projectName}>{project.name}</Text>
-          <Text style={styles.projectCustomer}>{project.customerName}</Text>
+          <Text style={styles.projectName} numberOfLines={2} ellipsizeMode="tail">
+            {project.name}
+          </Text>
+          <Text style={styles.projectCustomer} numberOfLines={2} ellipsizeMode="tail">
+            {project.customerName}
+          </Text>
         </View>
         <Text
           style={[
@@ -758,6 +762,8 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
     borderRadius: 8,
     backgroundColor: '#2563eb',
     paddingHorizontal: 16,
@@ -770,6 +776,8 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
     borderWidth: 1,
     borderColor: '#dbeafe',
     borderRadius: 8,
@@ -798,6 +806,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   projectTitleBlock: {
+    flex: 1,
+    minWidth: 0,
     gap: 3,
   },
   projectName: {
@@ -850,6 +860,7 @@ const styles = StyleSheet.create({
   },
   secondaryLink: {
     overflow: 'hidden',
+    minHeight: 48,
     borderWidth: 1,
     borderColor: '#dbeafe',
     borderRadius: 8,
@@ -858,11 +869,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '900',
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: 14,
     textAlign: 'center',
   },
   detailLink: {
     overflow: 'hidden',
+    minHeight: 48,
     borderRadius: 8,
     backgroundColor: '#0f172a',
     color: '#ffffff',
@@ -874,17 +886,20 @@ const styles = StyleSheet.create({
   },
   primaryLinkSmall: {
     overflow: 'hidden',
+    minHeight: 48,
     borderRadius: 8,
     backgroundColor: '#2563eb',
     color: '#ffffff',
     fontSize: 14,
     fontWeight: '900',
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: 14,
     textAlign: 'center',
   },
   paidButton: {
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
     borderRadius: 8,
     backgroundColor: '#16a34a',
     paddingHorizontal: 14,
@@ -902,6 +917,8 @@ const styles = StyleSheet.create({
   secondaryButtonHalf: {
     alignItems: 'center',
     flex: 1,
+    justifyContent: 'center',
+    minHeight: 48,
     borderWidth: 1,
     borderColor: '#dbeafe',
     borderRadius: 8,
@@ -912,6 +929,8 @@ const styles = StyleSheet.create({
   deleteButtonHalf: {
     alignItems: 'center',
     flex: 1,
+    justifyContent: 'center',
+    minHeight: 48,
     borderWidth: 1,
     borderColor: '#fecaca',
     borderRadius: 8,
@@ -941,6 +960,8 @@ const styles = StyleSheet.create({
   },
   dangerButton: {
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
     borderRadius: 8,
     backgroundColor: '#dc2626',
     paddingHorizontal: 16,

@@ -213,7 +213,9 @@ export default function CustomersScreen() {
             {customers.length > 0 ? (
               customers.map((customer) => (
                 <View key={customer.id} style={styles.customerCard}>
-                  <Text style={styles.customerName}>{customer.name}</Text>
+                  <Text style={styles.customerName} numberOfLines={2} ellipsizeMode="tail">
+                    {customer.name}
+                  </Text>
                   <Text style={styles.customerMeta}>
                     {customer.contactName || '担当者未設定'} / {customer.email || 'メール未設定'}
                   </Text>
@@ -392,6 +394,8 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
     borderRadius: 8,
     backgroundColor: '#2563eb',
     paddingHorizontal: 16,
@@ -404,6 +408,8 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
     borderWidth: 1,
     borderColor: '#dbeafe',
     borderRadius: 8,
@@ -417,6 +423,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   customerCard: {
+    width: '100%',
     borderWidth: 1,
     borderColor: '#dbeafe',
     borderRadius: 8,
@@ -449,13 +456,14 @@ const styles = StyleSheet.create({
   },
   primaryLinkSmall: {
     overflow: 'hidden',
+    minHeight: 48,
     borderRadius: 8,
     backgroundColor: '#2563eb',
     color: '#ffffff',
     fontSize: 14,
     fontWeight: '900',
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: 14,
     textAlign: 'center',
   },
   cardActionRow: {
@@ -465,22 +473,24 @@ const styles = StyleSheet.create({
   secondaryButtonHalf: {
     alignItems: 'center',
     flex: 1,
+    minHeight: 48,
     borderWidth: 1,
     borderColor: '#dbeafe',
     borderRadius: 8,
     backgroundColor: '#ffffff',
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: 14,
   },
   deleteButtonHalf: {
     alignItems: 'center',
     flex: 1,
+    minHeight: 48,
     borderWidth: 1,
     borderColor: '#fecaca',
     borderRadius: 8,
     backgroundColor: '#fff1f2',
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: 14,
   },
   deleteButtonText: {
     color: '#dc2626',
@@ -504,6 +514,8 @@ const styles = StyleSheet.create({
   },
   dangerButton: {
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
     borderRadius: 8,
     backgroundColor: '#dc2626',
     paddingHorizontal: 16,
