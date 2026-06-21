@@ -8,7 +8,7 @@ import { AuthPanel } from '@/components/AuthPanel';
 import { SeoHead } from '@/components/SeoHead';
 import { Text, View } from '@/components/Themed';
 import { UsageLimitPanel } from '@/components/UsageLimitPanel';
-import { getCurrentUser } from '@/lib/auth';
+import { getCurrentUser, signOut, subscribeToAuthState } from '@/lib/auth';
 import { billingPlans, openBillingLink, openCustomerPortal } from '@/lib/billing';
 import {
   Customer,
@@ -135,6 +135,12 @@ export default function SettingsScreen() {
   }, []);
 
   useEffect(() => {
+    return subscribeToAuthState((authUser) => {
+      setCurrentUser(authUser);
+    });
+  }, []);
+
+  useEffect(() => {
     const nextTab = params.tab as TabKey | undefined;
     const validTabs: TabKey[] = ['dashboard', 'customers', 'estimates', 'invoices', 'billing', 'mypage', 'supabase'];
 
@@ -204,6 +210,21 @@ export default function SettingsScreen() {
       setPortalStatus('Stripe Customer Portalを開きました。');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Customer Portalを開けませんでした。';
+      setPortalStatus(message);
+    }
+  };
+
+  const handleSignOut = async () => {
+    setPortalStatus('ログアウトしています...');
+
+    try {
+      await signOut();
+      setCurrentUser(null);
+      setProfile(null);
+      setUsageSummary(null);
+      setPortalStatus('ログアウトしました。');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'ログアウトに失敗しました。';
       setPortalStatus(message);
     }
   };
@@ -521,30 +542,47 @@ export default function SettingsScreen() {
             <View style={styles.panelHeader} lightColor="transparent" darkColor="transparent">
               <View lightColor="transparent" darkColor="transparent">
                 <Text style={styles.panelTitle}>マイページ</Text>
-                <Text style={styles.panelMeta}>アカウント情報、現在プラン、Stripe決済ページを確認できます。</Text>
+                <Text style={styles.panelMeta}>アカウント情報、現在プラン、Stripe管理、ログアウトをまとめました。</Text>
               </View>
             </View>
-            <View style={styles.profileList}>
-              <ProfileRow label="メールアドレス" value={currentUser?.email ?? '未ログイン'} />
-              <ProfileRow label="登録日" value={currentUser?.created_at ? currentUser.created_at.slice(0, 10) : '未ログイン'} />
-              <ProfileRow label="現在プラン" value={getPlanLabel(profile?.plan ?? usageSummary?.plan)} />
-              <ProfileRow label="Stripe Customer" value={profile?.stripeCustomerId || '未連携'} />
-            </View>
-            {profile?.plan === 'pro' || profile?.plan === 'business' ? (
-              <View style={styles.upgradeBox}>
-                <Text style={styles.rowTitle}>サブスク管理</Text>
-                <Text style={styles.rowSub}>
-                  Stripe Customer Portalでプラン確認、支払い方法変更、サブスク解約を行えます。
-                </Text>
-                <Pressable style={styles.primaryButton} onPress={handleOpenCustomerPortal}>
-                  <Text style={styles.primaryButtonText} lightColor="#ffffff" darkColor="#ffffff">
-                    サブスク管理
-                  </Text>
+            {!currentUser ? (
+              <View style={styles.loginShell}>
+                <Text style={styles.rowTitle}>ログインしてクラウド保存を開始</Text>
+                <Text style={styles.rowSub}>ログイン後はこの画面がマイページに切り替わります。</Text>
+                <AuthPanel />
+              </View>
+            ) : (
+              <>
+                <View style={styles.profileHero}>
+                  <Text style={styles.profileHeroLabel}>ログイン中</Text>
+                  <Text style={styles.profileHeroEmail}>{currentUser.email ?? currentUser.id}</Text>
+                  <Text style={styles.profileHeroPlan}>{getPlanLabel(profile?.plan ?? usageSummary?.plan)}プラン</Text>
+                </View>
+                <View style={styles.profileList}>
+                  <ProfileRow label="メールアドレス" value={currentUser.email ?? '未設定'} />
+                  <ProfileRow label="登録日" value={currentUser.created_at ? currentUser.created_at.slice(0, 10) : '不明'} />
+                  <ProfileRow label="現在プラン" value={getPlanLabel(profile?.plan ?? usageSummary?.plan)} />
+                  <ProfileRow label="Stripe Customer" value={profile?.stripeCustomerId || '未連携'} />
+                </View>
+                {profile?.plan === 'pro' || profile?.plan === 'business' ? (
+                  <View style={styles.upgradeBox}>
+                    <Text style={styles.rowTitle}>Stripe管理</Text>
+                    <Text style={styles.rowSub}>
+                      Stripe Customer Portalでプラン確認、支払い方法変更、サブスク解約を行えます。
+                    </Text>
+                    <Pressable style={styles.primaryButton} onPress={handleOpenCustomerPortal}>
+                      <Text style={styles.primaryButtonText} lightColor="#ffffff" darkColor="#ffffff">
+                        サブスク管理
+                      </Text>
+                    </Pressable>
+                  </View>
+                ) : null}
+                <Pressable style={styles.secondaryButtonLarge} onPress={handleSignOut}>
+                  <Text style={styles.secondaryButtonText}>ログアウト</Text>
                 </Pressable>
                 {portalStatus ? <Text style={styles.syncStatus}>{portalStatus}</Text> : null}
-              </View>
-            ) : null}
-            <AuthPanel />
+              </>
+            )}
           </View>
           ) : null}
 
@@ -637,8 +675,8 @@ const styles = StyleSheet.create({
   },
   container: {
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 16,
   },
   content: {
     width: '100%',
@@ -657,8 +695,8 @@ const styles = StyleSheet.create({
   },
   title: {
     color: '#111827',
-    fontSize: 28,
-    fontWeight: '800',
+    fontSize: 30,
+    fontWeight: '900',
   },
   description: {
     color: '#64748b',
@@ -701,9 +739,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e5e7eb',
     borderRadius: 8,
-    padding: 16,
+    padding: 15,
     backgroundColor: '#ffffff',
     gap: 14,
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.04,
+    shadowRadius: 16,
+    elevation: 1,
   },
   panelHeader: {
     gap: 10,
@@ -757,15 +800,16 @@ const styles = StyleSheet.create({
     gap: 9,
   },
   primaryButton: {
-    alignSelf: 'flex-start',
+    alignItems: 'center',
+    alignSelf: 'stretch',
     backgroundColor: '#2563eb',
     borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
   },
   primaryButtonText: {
-    fontSize: 13,
-    fontWeight: '800',
+    fontSize: 15,
+    fontWeight: '900',
   },
   secondaryButton: {
     borderWidth: 1,
@@ -776,8 +820,17 @@ const styles = StyleSheet.create({
   },
   secondaryButtonText: {
     color: '#2563eb',
-    fontSize: 13,
-    fontWeight: '800',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  secondaryButtonLarge: {
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 8,
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 16,
+    paddingVertical: 13,
   },
   customerRow: {
     borderWidth: 1,
@@ -907,11 +960,42 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: '#ffffff',
   },
+  loginShell: {
+    borderWidth: 1,
+    borderColor: '#dbeafe',
+    borderRadius: 8,
+    backgroundColor: '#eff6ff',
+    gap: 10,
+    padding: 12,
+  },
+  profileHero: {
+    borderRadius: 8,
+    backgroundColor: '#0f172a',
+    gap: 5,
+    padding: 16,
+  },
+  profileHeroLabel: {
+    color: '#93c5fd',
+    fontSize: 12,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
+  profileHeroEmail: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: '900',
+    lineHeight: 24,
+  },
+  profileHeroPlan: {
+    color: '#dbeafe',
+    fontSize: 13,
+    fontWeight: '800',
+  },
   profileRow: {
     borderBottomWidth: 1,
     borderBottomColor: '#eef2f7',
     gap: 4,
-    padding: 12,
+    padding: 13,
   },
   profileLabel: {
     color: '#64748b',

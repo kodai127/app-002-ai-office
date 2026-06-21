@@ -1,11 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, TextInput } from 'react-native';
 import { Link } from 'expo-router';
+import { User } from '@supabase/supabase-js';
 
 import { AppHeader } from '@/components/AppHeader';
 import { Text, View } from '@/components/Themed';
 import { SeoHead } from '@/components/SeoHead';
 import { billingPlans } from '@/lib/billing';
+import { getCurrentUser } from '@/lib/auth';
 import {
   formatCurrency,
   isThisMonth,
@@ -13,6 +15,14 @@ import {
   mockEstimateRecords,
   mockInvoiceRecords,
 } from '@/lib/officeData';
+import {
+  BillingProfile,
+  fetchEstimateRecords,
+  fetchInvoiceRecords,
+  fetchOrCreateProfile,
+  fetchUsageSummary,
+  UsageSummary,
+} from '@/lib/supabaseRepositories';
 
 const monthlyEstimateCount = mockEstimateRecords.filter((estimate) =>
   isThisMonth(estimate.issuedAt)
@@ -96,10 +106,27 @@ const comparisonRows = [
   { feature: 'おすすめ対象', free: '試用', pro: '個人事業主', business: '小規模チーム' },
 ];
 
+function getPlanLabel(plan?: string) {
+  if (plan === 'business') {
+    return 'Business';
+  }
+
+  if (plan === 'pro') {
+    return 'Pro';
+  }
+
+  return 'Free';
+}
+
 export default function HomeScreen() {
   const [contactName, setContactName] = useState('');
   const [contactEmail, setContactEmail] = useState('');
   const [contactMessage, setContactMessage] = useState('');
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<BillingProfile | null>(null);
+  const [usageSummary, setUsageSummary] = useState<UsageSummary | null>(null);
+  const [estimateCount, setEstimateCount] = useState(mockEstimateRecords.length);
+  const [invoiceCount, setInvoiceCount] = useState(mockInvoiceRecords.length);
   const proPlan = billingPlans.find((plan) => plan.key === 'pro');
   const contactUrl = useMemo(() => {
     const body = [
@@ -122,6 +149,51 @@ export default function HomeScreen() {
     Linking.openURL(paymentLink);
   };
 
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadDashboard() {
+      try {
+        const [authUser, usage] = await Promise.all([getCurrentUser(), fetchUsageSummary()]);
+
+        if (!isMounted) {
+          return;
+        }
+
+        setCurrentUser(authUser);
+        setUsageSummary(usage);
+
+        if (!authUser) {
+          return;
+        }
+
+        const [nextProfile, estimates, invoices] = await Promise.all([
+          fetchOrCreateProfile(),
+          fetchEstimateRecords(),
+          fetchInvoiceRecords(),
+        ]);
+
+        if (!isMounted) {
+          return;
+        }
+
+        setProfile(nextProfile);
+        setEstimateCount(estimates.length);
+        setInvoiceCount(invoices.length);
+      } catch {
+        if (isMounted) {
+          setUsageSummary((currentSummary) => currentSummary ?? null);
+        }
+      }
+    }
+
+    loadDashboard();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   return (
     <>
       <SeoHead
@@ -131,6 +203,46 @@ export default function HomeScreen() {
       <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
         <AppHeader />
         <View style={styles.content} lightColor="transparent" darkColor="transparent">
+          <View style={styles.dashboardHero}>
+            <View style={styles.dashboardHeader} lightColor="transparent" darkColor="transparent">
+              <View style={styles.welcomeCopy} lightColor="transparent" darkColor="transparent">
+                <Text style={styles.eyebrow}>Dashboard</Text>
+                <Text style={styles.dashboardTitle}>
+                  {currentUser?.email ? 'おかえりなさい' : 'ようこそ、AI Officeへ'}
+                </Text>
+                <Text style={styles.dashboardText}>
+                  見積書・請求書の作成状況とプランをスマホからすぐ確認できます。
+                </Text>
+              </View>
+              <View style={styles.planPill}>
+                <Text style={styles.planPillLabel}>現在プラン</Text>
+                <Text style={styles.planPillValue}>{getPlanLabel(profile?.plan ?? usageSummary?.plan)}</Text>
+              </View>
+            </View>
+            <View style={styles.dashboardGrid} lightColor="transparent" darkColor="transparent">
+              <DashboardCard
+                label="今月利用件数"
+                value={`${usageSummary?.used ?? 0}件`}
+                note={usageSummary?.limit === null ? '無制限で利用可能' : 'Freeは月3回まで'}
+              />
+              <DashboardCard label="見積書数" value={`${estimateCount}件`} note="保存済み見積書" />
+              <DashboardCard label="請求書数" value={`${invoiceCount}件`} note="保存済み請求書" />
+              <DashboardCard
+                label="保存可能残数"
+                value={usageSummary?.remaining === null ? '無制限' : `${usageSummary?.remaining ?? 3}回`}
+                note={usageSummary?.limit === null ? 'Pro/Business' : '今月のFree残数'}
+              />
+            </View>
+            <View style={styles.dashboardActions} lightColor="transparent" darkColor="transparent">
+              <Link href="/estimate" style={styles.dashboardPrimaryLink}>
+                見積書を作成
+              </Link>
+              <Link href="/invoice" style={styles.dashboardSecondaryLink}>
+                請求書を作成
+              </Link>
+            </View>
+          </View>
+
           <View style={styles.hero} lightColor="transparent" darkColor="transparent">
             <View style={styles.heroCopy} lightColor="transparent" darkColor="transparent">
               <Text style={styles.eyebrow}>個人事業主・フリーランス向け</Text>
@@ -385,6 +497,16 @@ function KpiCard({ label, trend, value }: { label: string; trend: string; value:
   );
 }
 
+function DashboardCard({ label, note, value }: { label: string; note: string; value: string }) {
+  return (
+    <View style={styles.dashboardCard}>
+      <Text style={styles.dashboardCardLabel}>{label}</Text>
+      <Text style={styles.dashboardCardValue}>{value}</Text>
+      <Text style={styles.dashboardCardNote}>{note}</Text>
+    </View>
+  );
+}
+
 function statusLabel(status: string) {
   const labels: Record<string, string> = {
     accepted: '受注',
@@ -435,17 +557,123 @@ function Field({ keyboardType = 'default', label, multiline, onChangeText, place
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#f5f7fb',
+    backgroundColor: '#f4f7fb',
   },
   container: {
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 16,
   },
   content: {
     width: '100%',
     maxWidth: 760,
+    gap: 12,
+  },
+  dashboardHero: {
+    borderWidth: 1,
+    borderColor: '#dbeafe',
+    borderRadius: 8,
+    backgroundColor: '#ffffff',
     gap: 14,
+    padding: 16,
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
+    elevation: 2,
+  },
+  dashboardHeader: {
+    gap: 12,
+  },
+  welcomeCopy: {
+    gap: 6,
+  },
+  dashboardTitle: {
+    color: '#0f172a',
+    fontSize: 26,
+    fontWeight: '900',
+    lineHeight: 32,
+  },
+  dashboardText: {
+    color: '#64748b',
+    fontSize: 14,
+    lineHeight: 21,
+  },
+  planPill: {
+    alignSelf: 'flex-start',
+    borderRadius: 8,
+    backgroundColor: '#eff6ff',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  planPillLabel: {
+    color: '#1d4ed8',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  planPillValue: {
+    color: '#0f172a',
+    fontSize: 20,
+    fontWeight: '900',
+    marginTop: 2,
+  },
+  dashboardGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  dashboardCard: {
+    flexBasis: 145,
+    flexGrow: 1,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+    backgroundColor: '#f8fafc',
+    padding: 13,
+    gap: 4,
+  },
+  dashboardCardLabel: {
+    color: '#64748b',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  dashboardCardValue: {
+    color: '#0f172a',
+    fontSize: 25,
+    fontWeight: '900',
+  },
+  dashboardCardNote: {
+    color: '#64748b',
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 17,
+  },
+  dashboardActions: {
+    gap: 10,
+  },
+  dashboardPrimaryLink: {
+    overflow: 'hidden',
+    borderRadius: 8,
+    backgroundColor: '#2563eb',
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '900',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    textAlign: 'center',
+  },
+  dashboardSecondaryLink: {
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 8,
+    backgroundColor: '#ffffff',
+    color: '#2563eb',
+    fontSize: 16,
+    fontWeight: '900',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    textAlign: 'center',
   },
   hero: {
     borderWidth: 1,
@@ -453,7 +681,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: '#ffffff',
     gap: 18,
-    padding: 18,
+    padding: 16,
   },
   heroCopy: {
     gap: 12,
