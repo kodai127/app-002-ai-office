@@ -1,5 +1,6 @@
 import { Customer, EstimateRecord, InvoiceRecord, ProjectRecord, ProjectStatus } from './officeData';
 import { getCurrentUser } from './auth';
+import { sanitizeOptionalText, sanitizeText, validateAmount, validateEmail } from './security';
 import { isSupabaseConfigured, supabase } from './supabaseClient';
 import { CustomerRow, EstimateRow, InvoiceRow, ProfileRow, ProjectRow } from './supabaseTypes';
 
@@ -18,7 +19,7 @@ function createId(prefix: string) {
 }
 
 function toNullable(value: string | undefined) {
-  return value?.trim() ? value.trim() : null;
+  return sanitizeOptionalText(value, 1000);
 }
 
 export function formatSupabaseError(error: unknown) {
@@ -48,14 +49,9 @@ export function formatSupabaseError(error: unknown) {
   return '不明なエラーが発生しました。';
 }
 
-function throwSupabaseError(context: string, error: unknown, payload?: unknown): never {
-  const payloadText = payload ? ` / payload: ${JSON.stringify(payload)}` : '';
-
-  console.error(context, {
-    error,
-    payload,
-  });
-  throw new Error(`${context}: ${formatSupabaseError(error)}${payloadText}`);
+function throwSupabaseError(context: string, error: unknown, _payload?: unknown): never {
+  console.error(context, { error });
+  throw new Error(`${context}: ${formatSupabaseError(error)}`);
 }
 
 function isMissingColumn(error: unknown, columnName: string) {
@@ -445,13 +441,13 @@ export async function upsertProject(record: {
   const payload = {
     id: record.id || createId('prj'),
     user_id: userId,
-    customer_id: toNullable(record.customerId),
-    customer_name: record.customerName.trim() || '顧客未設定',
-    name: record.name || '新規案件',
-    amount: Number.isFinite(record.amount) ? record.amount : 0,
+    customer_id: sanitizeOptionalText(record.customerId, 120),
+    customer_name: sanitizeText(record.customerName, 120) || '顧客未設定',
+    name: sanitizeText(record.name, 120) || '新規案件',
+    amount: validateAmount(record.amount),
     status: record.status ?? 'draft',
-    memo: toNullable(record.memo),
-    due_date: record.dueDate || new Date().toISOString().slice(0, 10),
+    memo: sanitizeOptionalText(record.memo, 2000),
+    due_date: sanitizeText(record.dueDate, 10) || new Date().toISOString().slice(0, 10),
     updated_at: now,
     ...(record.id ? {} : { created_at: now }),
   };
@@ -466,10 +462,7 @@ export async function upsertProject(record: {
     if (isMissingCustomerNameColumn(error)) {
       const { customer_name: _customerName, ...fallbackPayload } = payload;
 
-      console.error('projects.customer_name列が未適用のため、顧客名なしで案件保存を再試行します', {
-        error,
-        payload,
-      });
+      console.error('projects.customer_name列が未適用のため、顧客名なしで案件保存を再試行します', { error });
 
       const { data: fallbackData, error: fallbackError } = await client
         .from('projects')
@@ -556,12 +549,12 @@ export async function upsertCustomer(customer: Customer) {
   const payload = {
     id: customer.id || createId('cus'),
     user_id: userId,
-    name: customer.name || '新規顧客',
-    contact_name: toNullable(customer.contactName),
-    email: toNullable(customer.email),
-    phone: toNullable(customer.phone),
-    address: toNullable(customer.address),
-    memo: toNullable(customer.memo),
+    name: sanitizeText(customer.name, 120) || '新規顧客',
+    contact_name: sanitizeOptionalText(customer.contactName, 120),
+    email: validateEmail(customer.email),
+    phone: sanitizeOptionalText(customer.phone, 40),
+    address: sanitizeOptionalText(customer.address, 240),
+    memo: sanitizeOptionalText(customer.memo, 2000),
     created_at: customer.createdAt ? `${customer.createdAt}T00:00:00.000Z` : now,
     updated_at: now,
   };
@@ -575,10 +568,7 @@ export async function upsertCustomer(customer: Customer) {
     if (isMissingColumn(error, 'user_id')) {
       const { user_id: _userId, ...fallbackPayload } = payload;
 
-      console.error('customers.user_id列が未適用のため、user_idなしで顧客保存を再試行します', {
-        error,
-        payload,
-      });
+      console.error('customers.user_id列が未適用のため、user_idなしで顧客保存を再試行します', { error });
 
       const { data: fallbackData, error: fallbackError } = await client
         .from('customers')
@@ -659,12 +649,12 @@ export async function saveEstimateRecord(record: {
       id: createId('est'),
       user_id: userId,
       customer_id: null,
-      customer_name: record.customerName || '顧客名未入力',
-      project_name: record.projectName || '案件名未入力',
-      work_description: toNullable(record.workDescription),
-      hours: record.hours,
-      hourly_rate: record.hourlyRate,
-      amount: record.amount,
+      customer_name: sanitizeText(record.customerName, 120) || '顧客名未入力',
+      project_name: sanitizeText(record.projectName, 120) || '案件名未入力',
+      work_description: sanitizeOptionalText(record.workDescription, 2000),
+      hours: validateAmount(record.hours, '工数'),
+      hourly_rate: validateAmount(record.hourlyRate, '時間単価'),
+      amount: validateAmount(record.amount),
       status: 'draft',
       issued_at: now.toISOString().slice(0, 10),
       updated_at: now.toISOString(),
@@ -717,16 +707,16 @@ export async function saveInvoiceRecord(record: {
       user_id: userId,
       estimate_id: null,
       customer_id: null,
-      customer_name: record.customerName || '顧客名未入力',
-      project_name: record.projectName || '案件名未入力',
-      work_description: toNullable(record.workDescription),
-      hours: record.hours,
-      hourly_rate: record.hourlyRate,
-      amount: record.amount,
-      invoice_number: record.invoiceNumber,
+      customer_name: sanitizeText(record.customerName, 120) || '顧客名未入力',
+      project_name: sanitizeText(record.projectName, 120) || '案件名未入力',
+      work_description: sanitizeOptionalText(record.workDescription, 2000),
+      hours: validateAmount(record.hours, '工数'),
+      hourly_rate: validateAmount(record.hourlyRate, '時間単価'),
+      amount: validateAmount(record.amount),
+      invoice_number: sanitizeText(record.invoiceNumber, 80),
       status: 'draft',
-      issued_at: record.issueDate,
-      due_date: record.dueDate,
+      issued_at: sanitizeText(record.issueDate, 10),
+      due_date: sanitizeText(record.dueDate, 10),
       paid_at: null,
       created_at: now,
       updated_at: now,

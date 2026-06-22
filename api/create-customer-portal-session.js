@@ -7,6 +7,12 @@ function sendJson(response, statusCode, payload) {
   response.end(JSON.stringify(payload));
 }
 
+function logServerError(context, error) {
+  console.error(context, {
+    message: error instanceof Error ? error.message : 'Unknown error',
+  });
+}
+
 function getPlanFromPriceId(priceId) {
   if (priceId && priceId === process.env.STRIPE_PRO_PRICE_ID) {
     return 'pro';
@@ -61,11 +67,11 @@ module.exports = async function handler(request, response) {
   }
 
   if (!process.env.STRIPE_SECRET_KEY) {
-    return sendJson(response, 500, { error: 'STRIPE_SECRET_KEY is not configured' });
+    return sendJson(response, 500, { error: 'Payment configuration is not available' });
   }
 
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY || !process.env.EXPO_PUBLIC_SUPABASE_URL) {
-    return sendJson(response, 500, { error: 'Supabase server environment variables are not configured' });
+    return sendJson(response, 500, { error: 'Server configuration is not available' });
   }
 
   try {
@@ -135,8 +141,7 @@ module.exports = async function handler(request, response) {
 
     return sendJson(response, 200, { url: session.url });
   } catch (error) {
-    return sendJson(response, 500, {
-      error: error instanceof Error ? error.message : 'Customer Portalを開始できませんでした。',
-    });
+    logServerError('Customer Portal session creation failed', error);
+    return sendJson(response, 500, { error: 'Customer Portalを開始できませんでした。' });
   }
 };

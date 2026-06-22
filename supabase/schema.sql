@@ -71,6 +71,29 @@ create table if not exists public.invoices (
   unique (user_id, invoice_number)
 );
 
+create table if not exists public.subscriptions (
+  id text primary key,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  stripe_customer_id text not null,
+  stripe_subscription_id text not null unique,
+  price_id text,
+  plan text not null default 'free' check (plan in ('free', 'pro', 'business')),
+  status text not null default 'incomplete',
+  current_period_end timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.usage_limits (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  project_limit integer not null default 3 check (project_limit >= 0),
+  customer_limit integer not null default 3 check (customer_limit >= 0),
+  estimate_limit integer not null default 3 check (estimate_limit >= 0),
+  invoice_limit integer not null default 3 check (invoice_limit >= 0),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 alter table public.customers
   add column if not exists user_id uuid references auth.users(id) on delete cascade;
 
@@ -107,17 +130,30 @@ create index if not exists projects_user_due_date_idx on public.projects (user_i
 create index if not exists projects_user_status_idx on public.projects (user_id, status);
 create index if not exists invoices_user_issued_at_idx on public.invoices (user_id, issued_at desc);
 create index if not exists customers_user_updated_at_idx on public.customers (user_id, updated_at desc);
+create index if not exists subscriptions_user_status_idx on public.subscriptions (user_id, status);
+create index if not exists subscriptions_customer_idx on public.subscriptions (stripe_customer_id);
 
 alter table public.profiles enable row level security;
 alter table public.customers enable row level security;
 alter table public.estimates enable row level security;
 alter table public.projects enable row level security;
 alter table public.invoices enable row level security;
+alter table public.subscriptions enable row level security;
+alter table public.usage_limits enable row level security;
 
 drop policy if exists "Allow public customer access during MVP" on public.customers;
 drop policy if exists "Allow public estimate access during MVP" on public.estimates;
 drop policy if exists "Allow public project access during MVP" on public.projects;
 drop policy if exists "Allow public invoice access during MVP" on public.invoices;
+drop policy if exists "Users can read own profile" on public.profiles;
+drop policy if exists "Users can insert own profile" on public.profiles;
+drop policy if exists "Users can update own profile" on public.profiles;
+drop policy if exists "Users can manage own customers" on public.customers;
+drop policy if exists "Users can manage own estimates" on public.estimates;
+drop policy if exists "Users can manage own projects" on public.projects;
+drop policy if exists "Users can manage own invoices" on public.invoices;
+drop policy if exists "Users can manage own subscriptions" on public.subscriptions;
+drop policy if exists "Users can manage own usage limits" on public.usage_limits;
 
 create policy "Users can read own profile"
 on public.profiles for select
@@ -150,6 +186,16 @@ with check (auth.uid() = user_id);
 
 create policy "Users can manage own invoices"
 on public.invoices for all
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
+create policy "Users can manage own subscriptions"
+on public.subscriptions for all
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
+create policy "Users can manage own usage limits"
+on public.usage_limits for all
 using (auth.uid() = user_id)
 with check (auth.uid() = user_id);
 

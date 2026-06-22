@@ -91,8 +91,6 @@ export default function CustomersScreen() {
       updatedAt: today,
     };
 
-    console.error('顧客保存payload', payload);
-
     try {
       const savedCustomer = await upsertCustomer(payload);
       setCustomers((currentCustomers) => {
@@ -119,10 +117,7 @@ export default function CustomersScreen() {
       setStatusMessage(`顧客を保存しました。ID: ${savedCustomer.id}`);
     } catch (error) {
       const message = formatSupabaseError(error);
-      console.error('顧客保存エラー', {
-        error,
-        payload,
-      });
+      console.error('顧客保存エラー', { error });
       setStatusMessage(`顧客の保存に失敗しました。${message}`);
     } finally {
       setIsSaving(false);

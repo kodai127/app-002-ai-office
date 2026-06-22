@@ -1,5 +1,6 @@
 import { User } from '@supabase/supabase-js';
 
+import { validateEmail } from './security';
 import { isSupabaseConfigured, supabase } from './supabaseClient';
 
 const productionSiteUrl = 'https://app-002-ai-office.vercel.app';
@@ -14,6 +15,16 @@ export function getAuthRedirectUrl() {
   const siteUrl = process.env.EXPO_PUBLIC_SITE_URL?.replace(/\/$/, '') || productionSiteUrl;
 
   return `${siteUrl}/settings`;
+}
+
+function validateRequiredEmail(email: string) {
+  const safeEmail = validateEmail(email);
+
+  if (!safeEmail) {
+    throw new Error('有効なメールアドレスを入力してください。');
+  }
+
+  return safeEmail;
 }
 
 export async function getCurrentUser() {
@@ -35,12 +46,10 @@ export async function sendLoginLink(email: string) {
     throw new Error('Supabase環境変数が未設定です。');
   }
 
-  if (!email || !email.includes('@')) {
-    throw new Error('有効なメールアドレスを入力してください。');
-  }
+  const safeEmail = validateRequiredEmail(email);
 
   const { error } = await supabase.auth.signInWithOtp({
-    email,
+    email: safeEmail,
     options: {
       emailRedirectTo: getAuthRedirectUrl(),
     },
@@ -56,16 +65,14 @@ export async function signUpWithEmailPassword(email: string, password: string) {
     throw new Error('Supabase環境変数が未設定です。');
   }
 
-  if (!email || !email.includes('@')) {
-    throw new Error('有効なメールアドレスを入力してください。');
-  }
+  const safeEmail = validateRequiredEmail(email);
 
   if (password.length < 6) {
     throw new Error('パスワードは6文字以上で入力してください。');
   }
 
   const { data, error } = await supabase.auth.signUp({
-    email,
+    email: safeEmail,
     password,
     options: {
       emailRedirectTo: getAuthRedirectUrl(),
@@ -84,16 +91,14 @@ export async function signInWithEmailPassword(email: string, password: string) {
     throw new Error('Supabase環境変数が未設定です。');
   }
 
-  if (!email || !email.includes('@')) {
-    throw new Error('有効なメールアドレスを入力してください。');
-  }
+  const safeEmail = validateRequiredEmail(email);
 
   if (!password) {
     throw new Error('パスワードを入力してください。');
   }
 
   const { data, error } = await supabase.auth.signInWithPassword({
-    email,
+    email: safeEmail,
     password,
   });
 
@@ -109,11 +114,9 @@ export async function sendPasswordResetEmail(email: string) {
     throw new Error('Supabase環境変数が未設定です。');
   }
 
-  if (!email || !email.includes('@')) {
-    throw new Error('有効なメールアドレスを入力してください。');
-  }
+  const safeEmail = validateRequiredEmail(email);
 
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+  const { error } = await supabase.auth.resetPasswordForEmail(safeEmail, {
     redirectTo: getAuthRedirectUrl(),
   });
 

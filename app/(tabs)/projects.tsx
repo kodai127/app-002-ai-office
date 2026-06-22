@@ -61,7 +61,6 @@ export default function ProjectsScreen() {
   const [form, setForm] = useState(initialForm);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [lastPayload, setLastPayload] = useState('');
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [statusMessage, setStatusMessage] = useState('');
   const [usageSummary, setUsageSummary] = useState<UsageSummary | null>(null);
@@ -158,19 +157,6 @@ export default function ProjectsScreen() {
 
     setIsSaving(true);
     setStatusMessage(form.id ? '案件を更新しています...' : '案件を保存しています...');
-    const diagnosticPayload = {
-      amount,
-      customerId: form.customerId || null,
-      customerName: form.customerName || '顧客未設定',
-      dueDate: form.dueDate,
-      id: form.id || 'new',
-      memo: form.memo || null,
-      name: form.name,
-      status: form.status,
-      userId,
-    };
-    setLastPayload(JSON.stringify(diagnosticPayload));
-    console.error('案件保存payload', diagnosticPayload);
 
     try {
       const savedProject = await upsertProject({
@@ -208,10 +194,7 @@ export default function ProjectsScreen() {
       setStatusMessage(`案件を保存しました。ID: ${savedProject.id}`);
     } catch (error) {
       const message = formatSupabaseError(error);
-      console.error('案件保存エラー', {
-        error,
-        form,
-      });
+      console.error('案件保存エラー', { error });
       setStatusMessage(`案件の保存に失敗しました。${message}`);
     } finally {
       setIsSaving(false);
@@ -291,7 +274,6 @@ export default function ProjectsScreen() {
             </Text>
             <Text style={styles.statusMessage}>{statusMessage}</Text>
             <Text style={styles.diagnosticText}>ログインuser_id: {userId || '未ログイン'}</Text>
-            {lastPayload ? <Text style={styles.diagnosticText}>保存payload: {lastPayload}</Text> : null}
           </View>
 
           <View style={styles.metricGrid} lightColor="transparent" darkColor="transparent">
