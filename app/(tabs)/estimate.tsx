@@ -450,7 +450,7 @@ export default function EstimateScreen() {
       try {
         saveEstimateHistoryLocally();
         const message = error instanceof Error ? error.message : 'Supabase保存に失敗しました。';
-        const upgradeMessage = message.includes('月3回') ? ' Proで無制限利用できます。' : '';
+        const upgradeMessage = message.includes('Freeプラン') || message.includes('件まで') ? ' Proで無制限利用できます。' : '';
         setHistoryStatus(`${message}${upgradeMessage} ローカルに退避しました。`);
       } catch {
         setHistoryStatus('見積履歴の保存に失敗しました。');

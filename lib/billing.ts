@@ -16,15 +16,15 @@ export const businessPaymentLink = 'https://buy.stripe.com/aFaaEY6q22acfOP2PJ4gg
 
 export const billingPlans: BillingPlan[] = [
   {
-    description: '公開前の体験と軽い利用向け',
-    features: ['見積書作成', '請求書作成', 'PDF出力', 'ローカル保存'],
+    description: '永久無料。小さく始めたい個人向け',
+    features: ['案件3件', '顧客3件', '見積3件', '請求3件'],
     key: 'free',
     monthlyPrice: '0円',
     title: 'Free',
   },
   {
     description: '個人事業主・フリーランス向け',
-    features: ['顧客管理', '請求書履歴', 'PDF出力', 'Supabase同期'],
+    features: ['すべて無制限', '未入金管理', 'CSV出力'],
     key: 'pro',
     monthlyPrice: '980円',
     paymentLink: proPaymentLink,
@@ -32,7 +32,7 @@ export const billingPlans: BillingPlan[] = [
   },
   {
     description: '小規模チーム・複数案件運用向け',
-    features: ['Pro機能すべて', '複数顧客運用', '履歴管理強化', '優先改善対象'],
+    features: ['Pro機能すべて', 'チーム機能準備', '高度な分析'],
     key: 'business',
     monthlyPrice: '2,980円',
     paymentLink: businessPaymentLink,

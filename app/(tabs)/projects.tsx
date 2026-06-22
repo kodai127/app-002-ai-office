@@ -11,10 +11,13 @@ import {
   deleteProjectRecord,
   fetchCustomers,
   fetchProjectRecords,
+  fetchUsageSummary,
   formatSupabaseError,
+  freeResourceLimit,
   summarizeProjects,
   updateProjectStatus,
   upsertProject,
+  UsageSummary,
 } from '@/lib/supabaseRepositories';
 
 const statusColors: Record<ProjectStatus, { backgroundColor: string; color: string; borderColor: string }> = {
@@ -61,9 +64,12 @@ export default function ProjectsScreen() {
   const [lastPayload, setLastPayload] = useState('');
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [statusMessage, setStatusMessage] = useState('');
+  const [usageSummary, setUsageSummary] = useState<UsageSummary | null>(null);
   const [userId, setUserId] = useState('');
   const summary = useMemo(() => summarizeProjects(projects), [projects]);
   const unpaidProjects = useMemo(() => projects.filter((project) => project.status === 'invoiced'), [projects]);
+  const isProjectLimitReached =
+    !form.id && usageSummary?.limit !== null && (usageSummary?.counts.projects ?? projects.length) >= freeResourceLimit;
 
   useEffect(() => {
     getCurrentUser().then((currentUser) => {
@@ -93,14 +99,16 @@ export default function ProjectsScreen() {
     setStatusMessage('案件を読み込んでいます...');
 
     try {
-      const [currentUser, nextCustomers, nextProjects] = await Promise.all([
+      const [currentUser, nextCustomers, nextProjects, nextUsageSummary] = await Promise.all([
         getCurrentUser(),
         fetchCustomers(),
         fetchProjectRecords(),
+        fetchUsageSummary(),
       ]);
       setUserId(currentUser?.id ?? '');
       setCustomers(nextCustomers);
       setProjects(nextProjects);
+      setUsageSummary(nextUsageSummary);
       setForm((currentForm) => ({
         ...currentForm,
         customerId: currentForm.customerId || nextCustomers[0]?.id || '',
@@ -143,6 +151,11 @@ export default function ProjectsScreen() {
       return;
     }
 
+    if (isProjectLimitReached) {
+      setStatusMessage('Freeプランの案件保存は3件までです。Proなら案件を無制限で保存できます。');
+      return;
+    }
+
     setIsSaving(true);
     setStatusMessage(form.id ? '案件を更新しています...' : '案件を保存しています...');
     const diagnosticPayload = {
@@ -180,6 +193,17 @@ export default function ProjectsScreen() {
 
         return [savedProject, ...currentProjects];
       });
+      setUsageSummary((currentSummary) =>
+        currentSummary && !form.id
+          ? {
+              ...currentSummary,
+              counts: {
+                ...currentSummary.counts,
+                projects: currentSummary.counts.projects + 1,
+              },
+            }
+          : currentSummary
+      );
       resetForm();
       setStatusMessage(`案件を保存しました。ID: ${savedProject.id}`);
     } catch (error) {
@@ -285,8 +309,19 @@ export default function ProjectsScreen() {
           <View style={styles.panel}>
             <View style={styles.panelHeader} lightColor="transparent" darkColor="transparent">
               <Text style={styles.panelTitle}>{form.id ? '案件編集' : '案件追加'}</Text>
-              <Text style={styles.panelMeta}>ログインユーザー本人のprojectsテーブルに保存します。</Text>
+              <Text style={styles.panelMeta}>
+                Freeは案件3件まで永久無料。Proは案件・顧客・見積・請求を無制限に保存できます。
+              </Text>
             </View>
+            {isProjectLimitReached ? (
+              <View style={styles.upgradeBox}>
+                <Text style={styles.panelTitle}>案件3件の上限に達しています</Text>
+                <Text style={styles.panelMeta}>Proなら月額980円で案件を無制限に保存し、未入金管理も使えます。</Text>
+                <Link href={'/pricing' as never} style={styles.primaryLinkSmall}>
+                  Proで無制限利用
+                </Link>
+              </View>
+            ) : null}
             <Field label="案件名" value={form.name} onChangeText={(value) => setForm({ ...form, name: value })} placeholder="LP制作" />
             <Text style={styles.label}>顧客</Text>
             <View style={styles.customerPicker} lightColor="transparent" darkColor="transparent">
@@ -349,7 +384,10 @@ export default function ProjectsScreen() {
                 </Pressable>
               ))}
             </View>
-            <Pressable style={styles.primaryButton} onPress={handleSaveProject} disabled={isSaving}>
+            <Pressable
+              style={[styles.primaryButton, isProjectLimitReached ? styles.primaryButtonDisabled : undefined]}
+              onPress={handleSaveProject}
+              disabled={isSaving || isProjectLimitReached}>
               <Text style={styles.primaryButtonText}>{isSaving ? '保存中...' : form.id ? '案件を更新' : '案件を保存'}</Text>
             </Pressable>
             {form.id ? (
@@ -665,6 +703,14 @@ const styles = StyleSheet.create({
     gap: 12,
     padding: 16,
   },
+  upgradeBox: {
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+    borderRadius: 8,
+    backgroundColor: '#eff6ff',
+    gap: 10,
+    padding: 14,
+  },
   unpaidPanel: {
     borderColor: '#fed7aa',
     backgroundColor: '#fff7ed',
@@ -768,6 +814,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#2563eb',
     paddingHorizontal: 16,
     paddingVertical: 14,
+  },
+  primaryButtonDisabled: {
+    backgroundColor: '#94a3b8',
   },
   primaryButtonText: {
     color: '#ffffff',

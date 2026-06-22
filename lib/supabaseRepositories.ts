@@ -93,7 +93,7 @@ export type BillingProfile = {
   subscriptionStatus: string;
 };
 
-const freeMonthlyCloudSaveLimit = 3;
+export const freeResourceLimit = 3;
 const paidSubscriptionStatuses = ['active', 'trialing', 'past_due'];
 
 export function mapProfileRow(row: ProfileRow): BillingProfile {
@@ -158,6 +158,12 @@ function isPaidProfile(profile: BillingProfile) {
 }
 
 export type UsageSummary = {
+  counts: {
+    customers: number;
+    estimates: number;
+    invoices: number;
+    projects: number;
+  };
   isConfigured: boolean;
   isLoggedIn: boolean;
   limit: number | null;
@@ -175,73 +181,74 @@ export type ProjectDashboardSummary = {
   paidCount: number;
 };
 
-function getCurrentMonthRange() {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), 1);
-  const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+type LimitedResource = 'projects' | 'customers' | 'estimates' | 'invoices';
 
-  return {
-    end: end.toISOString().slice(0, 10),
-    start: start.toISOString().slice(0, 10),
-  };
-}
+const limitedResourceLabels: Record<LimitedResource, string> = {
+  customers: '顧客',
+  estimates: '見積',
+  invoices: '請求',
+  projects: '案件',
+};
 
-async function assertPaidCustomerManagement() {
-  const profile = await fetchOrCreateProfile();
+async function countUserRecords(resource: LimitedResource, userId: string) {
+  const client = assertSupabase();
+  const { count, error } = await client.from(resource).select('id', { count: 'exact', head: true }).eq('user_id', userId);
 
-  if (!isPaidProfile(profile)) {
-    throw new Error('顧客管理のクラウド保存はPro/Businessプランで利用できます。');
+  if (error) {
+    throw error;
   }
+
+  return count ?? 0;
 }
 
-async function assertCanSaveBusinessRecord() {
+async function recordExists(resource: LimitedResource, id: string, userId: string) {
+  const client = assertSupabase();
+  const { data, error } = await client.from(resource).select('id').eq('id', id).eq('user_id', userId).maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return Boolean(data);
+}
+
+async function assertCanSaveResource(resource: LimitedResource, recordId?: string) {
   const profile = await fetchOrCreateProfile();
 
   if (isPaidProfile(profile)) {
     return;
   }
 
-  const client = assertSupabase();
   const userId = await requireUserId();
-  const { start, end } = getCurrentMonthRange();
-  const [estimateCountResult, invoiceCountResult] = await Promise.all([
-    client
-      .from('estimates')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', userId)
-      .gte('issued_at', start)
-      .lt('issued_at', end),
-    client
-      .from('invoices')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', userId)
-      .gte('issued_at', start)
-      .lt('issued_at', end),
-  ]);
 
-  if (estimateCountResult.error) {
-    throw estimateCountResult.error;
+  if (recordId && (await recordExists(resource, recordId, userId))) {
+    return;
   }
 
-  if (invoiceCountResult.error) {
-    throw invoiceCountResult.error;
-  }
+  const usedCount = await countUserRecords(resource, userId);
 
-  const usedCount = (estimateCountResult.count ?? 0) + (invoiceCountResult.count ?? 0);
-
-  if (usedCount >= freeMonthlyCloudSaveLimit) {
-    throw new Error('Freeプランのクラウド保存は月3回までです。Pro/Businessへアップグレードしてください。');
+  if (usedCount >= freeResourceLimit) {
+    const label = limitedResourceLabels[resource];
+    throw new Error(`Freeプランの${label}保存は${freeResourceLimit}件までです。Proなら全て無制限で利用できます。`);
   }
 }
 
 export async function fetchUsageSummary(): Promise<UsageSummary> {
+  const emptyCounts = {
+    customers: 0,
+    estimates: 0,
+    invoices: 0,
+    projects: 0,
+  };
+
   if (!isSupabaseConfigured || !supabase) {
     return {
+      counts: emptyCounts,
       isConfigured: false,
       isLoggedIn: false,
-      limit: freeMonthlyCloudSaveLimit,
+      limit: freeResourceLimit,
       plan: 'free',
-      remaining: freeMonthlyCloudSaveLimit,
+      remaining: freeResourceLimit,
       subscriptionStatus: 'not_configured',
       used: 0,
     };
@@ -251,46 +258,35 @@ export async function fetchUsageSummary(): Promise<UsageSummary> {
 
   if (!user) {
     return {
+      counts: emptyCounts,
       isConfigured: true,
       isLoggedIn: false,
-      limit: freeMonthlyCloudSaveLimit,
+      limit: freeResourceLimit,
       plan: 'free',
-      remaining: freeMonthlyCloudSaveLimit,
+      remaining: freeResourceLimit,
       subscriptionStatus: 'signed_out',
       used: 0,
     };
   }
 
   const profile = await fetchOrCreateProfile();
-  const client = assertSupabase();
-  const { start, end } = getCurrentMonthRange();
-  const [estimateCountResult, invoiceCountResult] = await Promise.all([
-    client
-      .from('estimates')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-      .gte('issued_at', start)
-      .lt('issued_at', end),
-    client
-      .from('invoices')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-      .gte('issued_at', start)
-      .lt('issued_at', end),
+  const [projectCount, customerCount, estimateCount, invoiceCount] = await Promise.all([
+    countUserRecords('projects', user.id),
+    countUserRecords('customers', user.id),
+    countUserRecords('estimates', user.id),
+    countUserRecords('invoices', user.id),
   ]);
-
-  if (estimateCountResult.error) {
-    throw estimateCountResult.error;
-  }
-
-  if (invoiceCountResult.error) {
-    throw invoiceCountResult.error;
-  }
-
-  const used = (estimateCountResult.count ?? 0) + (invoiceCountResult.count ?? 0);
+  const counts = {
+    customers: customerCount,
+    estimates: estimateCount,
+    invoices: invoiceCount,
+    projects: projectCount,
+  };
+  const used = projectCount + customerCount + estimateCount + invoiceCount;
 
   if (isPaidProfile(profile)) {
     return {
+      counts,
       isConfigured: true,
       isLoggedIn: true,
       limit: null,
@@ -302,11 +298,12 @@ export async function fetchUsageSummary(): Promise<UsageSummary> {
   }
 
   return {
+    counts,
     isConfigured: true,
     isLoggedIn: true,
-    limit: freeMonthlyCloudSaveLimit,
+    limit: freeResourceLimit,
     plan: 'free',
-    remaining: Math.max(freeMonthlyCloudSaveLimit - used, 0),
+    remaining: Math.max(freeResourceLimit * 4 - used, 0),
     subscriptionStatus: profile.subscriptionStatus,
     used,
   };
@@ -443,6 +440,7 @@ export async function upsertProject(record: {
 }) {
   const client = assertSupabase();
   const userId = await requireUserId();
+  await assertCanSaveResource('projects', record.id);
   const now = new Date().toISOString();
   const payload = {
     id: record.id || createId('prj'),
@@ -553,6 +551,7 @@ export function summarizeProjects(projects: ProjectRecord[], today = new Date())
 export async function upsertCustomer(customer: Customer) {
   const client = assertSupabase();
   const userId = await requireUserId();
+  await assertCanSaveResource('customers', customer.id);
   const now = new Date().toISOString();
   const payload = {
     id: customer.id || createId('cus'),
@@ -651,7 +650,7 @@ export async function saveEstimateRecord(record: {
   workDescription: string;
 }) {
   const client = assertSupabase();
-  await assertCanSaveBusinessRecord();
+  await assertCanSaveResource('estimates');
   const userId = await requireUserId();
   const now = new Date();
   const { data, error } = await client
@@ -708,7 +707,7 @@ export async function saveInvoiceRecord(record: {
   workDescription: string;
 }) {
   const client = assertSupabase();
-  await assertCanSaveBusinessRecord();
+  await assertCanSaveResource('invoices');
   const userId = await requireUserId();
   const now = new Date().toISOString();
   const { data, error } = await client

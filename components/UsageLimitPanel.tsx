@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
 
 import { billingPlans, openBillingLink } from '@/lib/billing';
-import { fetchUsageSummary, UsageSummary } from '@/lib/supabaseRepositories';
+import { fetchUsageSummary, freeResourceLimit, UsageSummary } from '@/lib/supabaseRepositories';
 import { Text, View } from './Themed';
 
 type UsageLimitPanelProps = {
@@ -15,30 +15,34 @@ function getUsageLabel(summary: UsageSummary | null) {
   }
 
   if (summary.limit === null) {
-    return `${summary.used} / 無制限`;
+    return '全て無制限';
   }
 
-  return `${summary.used} / ${summary.limit}`;
+  return `各${summary.limit}件まで`;
 }
 
 function getRemainingLabel(summary: UsageSummary | null) {
   if (!summary) {
-    return '月3回まで無料';
+    return 'Freeは案件・顧客・見積・請求を各3件まで永久無料です。';
   }
 
   if (summary.limit === null) {
-    return 'Pro/Businessは無制限で利用できます。';
-  }
-
-  if ((summary.remaining ?? 0) <= 0) {
-    return '残り0回。Freeの今月分は上限に達しました。';
+    return 'Pro/Businessは件数制限なしで利用できます。';
   }
 
   if (!summary.isLoggedIn) {
-    return `残り${summary.remaining ?? 0}回（ログインすると今月の利用回数を管理できます）`;
+    return 'ログインすると保存件数を管理できます。';
   }
 
-  return `残り${summary.remaining ?? 0}回`;
+  return `案件 ${summary.counts.projects}/${freeResourceLimit} / 顧客 ${summary.counts.customers}/${freeResourceLimit} / 見積 ${summary.counts.estimates}/${freeResourceLimit} / 請求 ${summary.counts.invoices}/${freeResourceLimit}`;
+}
+
+function hasReachedFreeLimit(summary: UsageSummary | null) {
+  if (!summary || summary.limit === null) {
+    return false;
+  }
+
+  return Object.values(summary.counts).some((count) => count >= freeResourceLimit);
 }
 
 export function UsageLimitPanel({ refreshKey }: UsageLimitPanelProps) {
@@ -46,7 +50,7 @@ export function UsageLimitPanel({ refreshKey }: UsageLimitPanelProps) {
   const [summary, setSummary] = useState<UsageSummary | null>(null);
   const proPlan = billingPlans.find((plan) => plan.key === 'pro');
   const isFree = summary?.limit !== null;
-  const isLocked = isFree && summary ? (summary.remaining ?? 0) <= 0 : false;
+  const isLocked = hasReachedFreeLimit(summary);
 
   useEffect(() => {
     let isMounted = true;
@@ -95,18 +99,18 @@ export function UsageLimitPanel({ refreshKey }: UsageLimitPanelProps) {
     <View style={[styles.panel, isLocked ? styles.lockedPanel : undefined]}>
       <View style={styles.header} lightColor="transparent" darkColor="transparent">
         <View lightColor="transparent" darkColor="transparent">
-          <Text style={styles.title}>今月利用</Text>
+          <Text style={styles.title}>Free保存枠</Text>
           <Text style={styles.usage}>{getUsageLabel(summary)}</Text>
         </View>
         <Text style={styles.badge}>
           {summary?.plan === 'business' ? 'Business' : summary?.plan === 'pro' ? 'Pro' : 'Free'}
         </Text>
       </View>
-      {isFree ? <Text style={styles.freeLimit}>月3回まで無料</Text> : null}
+      {isFree ? <Text style={styles.freeLimit}>永久無料。各3件まで保存できます。</Text> : null}
       <Text style={styles.description}>{getRemainingLabel(summary)}</Text>
       {isLocked ? (
         <Text style={styles.lockedText}>
-          今月の無料利用枠を使い切りました。Proにすると見積書・請求書を無制限で作成できます。
+          Freeの件数上限に達した項目があります。Proにすると案件・顧客・見積・請求を無制限で保存できます。
         </Text>
       ) : null}
       {isFree ? (

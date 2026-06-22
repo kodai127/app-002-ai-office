@@ -7,12 +7,14 @@ import { Text, View } from '@/components/Themed';
 import { billingPlans, openBillingLink } from '@/lib/billing';
 
 const comparisonRows = [
-  { feature: '月間作成件数', free: '3件まで', pro: '無制限', business: '無制限' },
-  { feature: '案件管理', free: '3件まで', pro: '無制限', business: '無制限' },
-  { feature: '顧客管理', free: '体験', pro: '対応', business: '対応' },
-  { feature: '見積・請求作成', free: '対応', pro: '対応', business: '対応' },
-  { feature: 'PDF出力', free: '対応', pro: '対応', business: '対応' },
-  { feature: 'おすすめ対象', free: '試用', pro: '個人事業主', business: '小規模チーム' },
+  { feature: '料金', free: '永久無料', pro: '980円/月', business: '2,980円/月' },
+  { feature: '案件', free: '3件', pro: '無制限', business: '無制限' },
+  { feature: '顧客', free: '3件', pro: '無制限', business: '無制限' },
+  { feature: '見積', free: '3件', pro: '無制限', business: '無制限' },
+  { feature: '請求', free: '3件', pro: '無制限', business: '無制限' },
+  { feature: '未入金管理', free: '-', pro: '対応', business: '対応' },
+  { feature: 'CSV出力', free: '-', pro: '対応', business: '対応' },
+  { feature: '高度な分析', free: '-', pro: '-', business: '対応' },
 ];
 
 export default function PricingScreen() {
@@ -20,7 +22,7 @@ export default function PricingScreen() {
     <>
       <SeoHead
         title="料金プラン"
-        description="AI Officeの料金プラン。Freeは月3件まで、Proは月980円、Businessは月2,980円で案件、見積、請求、入金管理を利用できます。"
+        description="AI Officeの料金プラン。Freeは永久無料で案件・顧客・見積・請求を各3件まで、Proは月980円で全て無制限、Businessは高度な分析に対応します。"
         path="/pricing"
       />
       <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
@@ -30,7 +32,7 @@ export default function PricingScreen() {
             <Text style={styles.eyebrow}>Pricing</Text>
             <Text style={styles.title}>まず無料で試して、必要になったらProへ。</Text>
             <Text style={styles.description}>
-              フリーランスの案件、見積、請求、入金確認をまとめて管理できます。月3件までは無料です。
+              Freeは永久無料。案件、顧客、見積、請求を各3件まで保存できます。継続利用はPro月980円で全て無制限です。
             </Text>
           </View>
 

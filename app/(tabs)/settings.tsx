@@ -33,6 +33,7 @@ import {
   fetchInvoiceRecords,
   fetchUsageSummary,
   fetchProjectRecords,
+  freeResourceLimit,
   UsageSummary,
   updateProjectStatus,
   upsertCustomer,
@@ -41,12 +42,13 @@ import {
 type TabKey = 'dashboard' | 'projects' | 'customers' | 'estimates' | 'invoices' | 'billing' | 'mypage' | 'supabase';
 
 const pricingComparisonRows = [
-  { feature: '月間利用回数', free: '月3回', pro: '無制限', business: '無制限' },
-  { feature: '見積書作成', free: '対応', pro: '対応', business: '対応' },
-  { feature: '請求書作成', free: '対応', pro: '対応', business: '対応' },
-  { feature: 'PDF出力', free: '対応', pro: '対応', business: '対応' },
-  { feature: '顧客管理', free: '制限あり', pro: '対応', business: '対応' },
-  { feature: '履歴保存', free: '制限あり', pro: '対応', business: '対応' },
+  { feature: '案件', free: '3件', pro: '無制限', business: '無制限' },
+  { feature: '顧客', free: '3件', pro: '無制限', business: '無制限' },
+  { feature: '見積', free: '3件', pro: '無制限', business: '無制限' },
+  { feature: '請求', free: '3件', pro: '無制限', business: '無制限' },
+  { feature: '未入金管理', free: '-', pro: '対応', business: '対応' },
+  { feature: 'CSV出力', free: '-', pro: '対応', business: '対応' },
+  { feature: '高度な分析', free: '-', pro: '-', business: '対応' },
 ];
 
 function getPlanLabel(plan?: string) {
@@ -61,6 +63,22 @@ function getPlanLabel(plan?: string) {
   return 'Free';
 }
 
+function formatResourceUsage(count: number, summary: UsageSummary | null) {
+  if (summary?.limit === null) {
+    return `${count}/無制限`;
+  }
+
+  return `${count}/${freeResourceLimit}`;
+}
+
+function hasReachedFreeLimit(summary: UsageSummary | null) {
+  if (!summary || summary.limit === null) {
+    return false;
+  }
+
+  return Object.values(summary.counts).some((count) => count >= freeResourceLimit);
+}
+
 export default function SettingsScreen() {
   const params = useLocalSearchParams<{ checkout?: string; tab?: string }>();
   const [activeTab, setActiveTab] = useState<TabKey>('dashboard');
@@ -72,7 +90,7 @@ export default function SettingsScreen() {
   const [profile, setProfile] = useState<BillingProfile | null>(null);
   const [usageSummary, setUsageSummary] = useState<UsageSummary | null>(null);
   const [editingCustomerId, setEditingCustomerId] = useState(customers[0]?.id ?? '');
-  const [billingStatus, setBillingStatus] = useState('Freeプラン: ローカル保存とPDF出力を試せます。');
+  const [billingStatus, setBillingStatus] = useState('Freeプラン: 案件・顧客・見積・請求を各3件まで永久無料で使えます。');
   const [portalStatus, setPortalStatus] = useState('');
   const [syncStatus, setSyncStatus] = useState(getSupabaseSetupMessage());
   const editingCustomer = customers.find((customer) => customer.id === editingCustomerId) ?? customers[0];
@@ -204,7 +222,7 @@ export default function SettingsScreen() {
     }
 
     if (plan.key === 'free') {
-      setBillingStatus('Freeプランを利用中です。Pro以上で顧客管理と履歴保存を本格利用できます。');
+      setBillingStatus('Freeプランは永久無料です。案件・顧客・見積・請求を各3件まで保存できます。');
       return;
     }
 
@@ -349,14 +367,24 @@ export default function SettingsScreen() {
                   value={getPlanLabel(profile?.plan ?? usageSummary?.plan)}
                 />
                 <MetricCard
-                  label="今月利用数"
-                  note={usageSummary?.limit === null ? 'Pro/Businessは無制限' : 'Freeは月3回まで無料'}
-                  value={`${usageSummary?.used ?? 0}件`}
+                  label="案件"
+                  note={usageSummary?.limit === null ? 'Pro/Businessは無制限' : 'Freeは3件まで'}
+                  value={formatResourceUsage(usageSummary?.counts.projects ?? projects.length, usageSummary)}
                 />
                 <MetricCard
-                  label="残り利用回数"
-                  note="見積書・請求書のクラウド保存"
-                  value={usageSummary?.remaining === null ? '無制限' : `${usageSummary?.remaining ?? 3}回`}
+                  label="顧客"
+                  note={usageSummary?.limit === null ? 'Pro/Businessは無制限' : 'Freeは3件まで'}
+                  value={formatResourceUsage(usageSummary?.counts.customers ?? customers.length, usageSummary)}
+                />
+                <MetricCard
+                  label="見積"
+                  note={usageSummary?.limit === null ? 'Pro/Businessは無制限' : 'Freeは3件まで'}
+                  value={formatResourceUsage(usageSummary?.counts.estimates ?? estimateRecords.length, usageSummary)}
+                />
+                <MetricCard
+                  label="請求"
+                  note={usageSummary?.limit === null ? 'Pro/Businessは無制限' : 'Freeは3件まで'}
+                  value={formatResourceUsage(usageSummary?.counts.invoices ?? invoiceRecords.length, usageSummary)}
                 />
                 <MetricCard label="進行中案件" note="入金前の案件" value={`${projects.filter((project) => project.status !== 'paid').length}件`} />
                 <MetricCard
@@ -372,10 +400,10 @@ export default function SettingsScreen() {
                 <MetricCard label="請求件数" note="保存済み請求書" value={`${invoiceRecords.length}件`} />
                 <MetricCard label="顧客数" note="管理中の顧客" value={`${customers.length}社`} />
               </View>
-              {usageSummary?.remaining === 0 ? (
+              {hasReachedFreeLimit(usageSummary) ? (
                 <View style={styles.upgradeBox}>
-                  <Text style={styles.rowTitle}>無料枠を使い切りました</Text>
-                  <Text style={styles.rowSub}>Proなら月額980円で見積書・請求書を無制限に保存できます。</Text>
+                  <Text style={styles.rowTitle}>Freeの件数上限に達しています</Text>
+                  <Text style={styles.rowSub}>Proなら月額980円で案件・顧客・見積・請求を全て無制限に保存できます。</Text>
                   <Pressable style={styles.primaryButton} onPress={() => handleOpenBilling('pro')}>
                     <Text style={styles.primaryButtonText} lightColor="#ffffff" darkColor="#ffffff">
                       Proで無制限利用
@@ -624,7 +652,7 @@ export default function SettingsScreen() {
             <View style={styles.panelHeader} lightColor="transparent" darkColor="transparent">
               <View lightColor="transparent" darkColor="transparent">
                 <Text style={styles.panelTitle}>料金プラン</Text>
-                <Text style={styles.panelMeta}>月300万円を目標に、FreeからPro/Businessへアップグレードする導線です。</Text>
+                <Text style={styles.panelMeta}>Freeは永久無料。継続利用はPro/Businessで件数制限を外せます。</Text>
               </View>
               <Text style={styles.syncStatus}>{billingStatus}</Text>
             </View>
@@ -633,7 +661,7 @@ export default function SettingsScreen() {
                 <View style={styles.rowBody} lightColor="transparent" darkColor="transparent">
                   <Text style={styles.rowTitle}>{plan.title}</Text>
                   <Text style={styles.planPrice}>
-                    {plan.key === 'free' ? '月3回まで無料' : plan.key === 'pro' ? '980円/月' : '2980円/月'}
+                    {plan.key === 'free' ? '永久無料' : plan.key === 'pro' ? '980円/月' : '2980円/月'}
                   </Text>
                   <Text style={styles.rowSub}>{plan.description}</Text>
                 </View>

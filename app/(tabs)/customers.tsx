@@ -10,8 +10,11 @@ import {
   createCustomerDraft,
   deleteCustomerRecord,
   fetchCustomers,
+  fetchUsageSummary,
   formatSupabaseError,
+  freeResourceLimit,
   upsertCustomer,
+  UsageSummary,
 } from '@/lib/supabaseRepositories';
 
 const initialForm = {
@@ -30,6 +33,9 @@ export default function CustomersScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
+  const [usageSummary, setUsageSummary] = useState<UsageSummary | null>(null);
+  const isCustomerLimitReached =
+    !form.id && usageSummary?.limit !== null && (usageSummary?.counts.customers ?? customers.length) >= freeResourceLimit;
 
   useEffect(() => {
     loadCustomers();
@@ -40,8 +46,9 @@ export default function CustomersScreen() {
     setStatusMessage('顧客を読み込んでいます...');
 
     try {
-      const nextCustomers = await fetchCustomers();
+      const [nextCustomers, nextUsageSummary] = await Promise.all([fetchCustomers(), fetchUsageSummary()]);
       setCustomers(nextCustomers);
+      setUsageSummary(nextUsageSummary);
       setStatusMessage(nextCustomers.length > 0 ? 'Supabaseから顧客を読み込みました。' : 'まだ顧客はありません。');
     } catch (error) {
       const message = formatSupabaseError(error);
@@ -60,6 +67,11 @@ export default function CustomersScreen() {
   const handleSaveCustomer = async () => {
     if (!form.name.trim()) {
       setStatusMessage('会社名を入力してください。');
+      return;
+    }
+
+    if (isCustomerLimitReached) {
+      setStatusMessage('Freeプランの顧客保存は3件までです。Proなら顧客を無制限で保存できます。');
       return;
     }
 
@@ -92,6 +104,17 @@ export default function CustomersScreen() {
 
         return [savedCustomer, ...currentCustomers];
       });
+      setUsageSummary((currentSummary) =>
+        currentSummary && !form.id
+          ? {
+              ...currentSummary,
+              counts: {
+                ...currentSummary.counts,
+                customers: currentSummary.counts.customers + 1,
+              },
+            }
+          : currentSummary
+      );
       resetForm();
       setStatusMessage(`顧客を保存しました。ID: ${savedCustomer.id}`);
     } catch (error) {
@@ -165,8 +188,17 @@ export default function CustomersScreen() {
           <View style={styles.panel}>
             <View style={styles.panelHeader} lightColor="transparent" darkColor="transparent">
               <Text style={styles.panelTitle}>{form.id ? '顧客編集' : '顧客追加'}</Text>
-              <Text style={styles.panelMeta}>保存後、案件作成画面の顧客選択に反映されます。</Text>
+              <Text style={styles.panelMeta}>Freeは顧客3件まで永久無料。Proは顧客を無制限に保存できます。</Text>
             </View>
+            {isCustomerLimitReached ? (
+              <View style={styles.upgradeBox}>
+                <Text style={styles.panelTitle}>顧客3件の上限に達しています</Text>
+                <Text style={styles.panelMeta}>Proなら月額980円で顧客・案件・見積・請求を無制限に保存できます。</Text>
+                <Link href={'/pricing' as never} style={styles.primaryLinkSmall}>
+                  Proで無制限利用
+                </Link>
+              </View>
+            ) : null}
             <Field label="会社名" value={form.name} onChangeText={(value) => setForm({ ...form, name: value })} placeholder="株式会社サンプル" />
             <Field
               label="担当者名"
@@ -195,7 +227,10 @@ export default function CustomersScreen() {
               placeholder="支払条件、案件メモ、連絡時の注意点"
               multiline
             />
-            <Pressable style={styles.primaryButton} onPress={handleSaveCustomer} disabled={isSaving}>
+            <Pressable
+              style={[styles.primaryButton, isCustomerLimitReached ? styles.primaryButtonDisabled : undefined]}
+              onPress={handleSaveCustomer}
+              disabled={isSaving || isCustomerLimitReached}>
               <Text style={styles.primaryButtonText}>{isSaving ? '保存中...' : form.id ? '顧客を更新' : '顧客を保存'}</Text>
             </Pressable>
             {form.id ? (
@@ -356,6 +391,14 @@ const styles = StyleSheet.create({
     gap: 12,
     padding: 16,
   },
+  upgradeBox: {
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+    borderRadius: 8,
+    backgroundColor: '#eff6ff',
+    gap: 10,
+    padding: 14,
+  },
   panelHeader: {
     gap: 3,
   },
@@ -400,6 +443,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#2563eb',
     paddingHorizontal: 16,
     paddingVertical: 14,
+  },
+  primaryButtonDisabled: {
+    backgroundColor: '#94a3b8',
   },
   primaryButtonText: {
     color: '#ffffff',

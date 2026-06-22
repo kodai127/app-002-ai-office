@@ -24,6 +24,7 @@ import {
   fetchOrCreateProfile,
   fetchProjectRecords,
   fetchUsageSummary,
+  freeResourceLimit,
   summarizeProjects,
   UsageSummary,
 } from '@/lib/supabaseRepositories';
@@ -71,7 +72,7 @@ const useCases = [
 const faqItems = [
   {
     question: '無料で使えますか？',
-    answer: '月3回まで無料です',
+    answer: '永久無料です。案件、顧客、見積、請求を各3件まで保存できます。',
   },
   {
     question: 'インボイス対応ですか？',
@@ -88,13 +89,14 @@ const faqItems = [
 ];
 
 const comparisonRows = [
-  { feature: '月間作成件数', free: '3件まで', pro: '無制限', business: '無制限' },
-  { feature: '案件管理', free: '3件まで', pro: '無制限', business: '無制限' },
-  { feature: '見積書・請求書作成', free: '対応', pro: '対応', business: '対応' },
-  { feature: 'PDF出力', free: '対応', pro: '対応', business: '対応' },
-  { feature: '顧客管理', free: '体験のみ', pro: '対応', business: '対応' },
-  { feature: '履歴保存', free: '制限あり', pro: '無制限', business: '無制限' },
-  { feature: 'おすすめ対象', free: '試用', pro: '個人事業主', business: '小規模チーム' },
+  { feature: '料金', free: '永久無料', pro: '980円/月', business: '2,980円/月' },
+  { feature: '案件', free: '3件', pro: '無制限', business: '無制限' },
+  { feature: '顧客', free: '3件', pro: '無制限', business: '無制限' },
+  { feature: '見積', free: '3件', pro: '無制限', business: '無制限' },
+  { feature: '請求', free: '3件', pro: '無制限', business: '無制限' },
+  { feature: '未入金管理', free: '-', pro: '対応', business: '対応' },
+  { feature: 'CSV出力', free: '-', pro: '対応', business: '対応' },
+  { feature: '高度な分析', free: '-', pro: '-', business: '対応' },
 ];
 
 function getPlanLabel(plan?: string) {
@@ -107,6 +109,14 @@ function getPlanLabel(plan?: string) {
   }
 
   return 'Free';
+}
+
+function formatResourceUsage(count: number, summary: UsageSummary | null) {
+  if (summary?.limit === null) {
+    return `${count}/無制限`;
+  }
+
+  return `${count}/${freeResourceLimit}`;
 }
 
 export default function HomeScreen() {
@@ -239,7 +249,7 @@ export default function HomeScreen() {
             <View style={styles.simplePricingPanel}>
               <View style={styles.panelHeader} lightColor="transparent" darkColor="transparent">
                 <Text style={styles.panelTitle}>料金比較</Text>
-                <Text style={styles.panelMeta}>月3件まで無料。継続利用はPro月980円。</Text>
+                <Text style={styles.panelMeta}>Freeは永久無料。各3件まで、Proは月980円で無制限。</Text>
               </View>
               <View style={styles.comparisonTable} lightColor="transparent" darkColor="transparent">
                 <View style={styles.comparisonHeader} lightColor="transparent" darkColor="transparent">
@@ -268,7 +278,7 @@ export default function HomeScreen() {
     <>
       <SeoHead
         title="フリーランスの案件管理SaaS"
-        description="AI Officeは、フリーランス向けに案件、見積、請求、入金確認を1画面で管理するSaaSです。月3件まで無料、Proは月980円で利用できます。"
+        description="AI Officeは、フリーランス向けに案件、見積、請求、入金確認を1画面で管理するSaaSです。Freeは永久無料、Proは月980円で全て無制限です。"
       />
       <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
         <AppHeader />
@@ -301,18 +311,25 @@ export default function HomeScreen() {
                 note={`総額 ${formatCurrency(projectSummary.outstandingAmount)}`}
                 danger
               />
-              <DashboardCard label="案件数" value={`${projects.length}件`} note={`${projectSummary.activeCount}件が進行中`} />
-              <DashboardCard label="顧客数" value={`${customerCount}社`} note="Supabase顧客管理" />
               <DashboardCard
-                label="期限切れ"
-                value={`${overdueUnpaidProjects.length}件`}
-                note="期限超過の未入金"
-                danger={overdueUnpaidProjects.length > 0}
+                label="案件"
+                value={formatResourceUsage(usageSummary?.counts.projects ?? projects.length, usageSummary)}
+                note={`${projectSummary.activeCount}件が進行中`}
               />
               <DashboardCard
-                label="無料枠残数"
-                value={usageSummary?.remaining === null ? '無制限' : `${usageSummary?.remaining ?? 3}回`}
-                note={usageSummary?.limit === null ? 'Pro/Business' : '今月のFree残数'}
+                label="顧客"
+                value={formatResourceUsage(usageSummary?.counts.customers ?? customerCount, usageSummary)}
+                note="顧客管理"
+              />
+              <DashboardCard
+                label="見積"
+                value={formatResourceUsage(usageSummary?.counts.estimates ?? estimateCount, usageSummary)}
+                note="保存済み見積"
+              />
+              <DashboardCard
+                label="請求"
+                value={formatResourceUsage(usageSummary?.counts.invoices ?? invoiceCount, usageSummary)}
+                note="保存済み請求"
               />
             </View>
             <View style={styles.dashboardActions} lightColor="transparent" darkColor="transparent">
@@ -331,7 +348,7 @@ export default function HomeScreen() {
               <Text style={styles.eyebrow}>Web制作・動画編集・AI開発・デザイン・ライター向け</Text>
               <Text style={styles.title}>フリーランスの案件管理を、請求までひとまとめに。</Text>
               <Text style={styles.description}>
-                案件が決まったら、見積・請求・入金確認まで1画面で管理。月3件まで無料、Proは月980円で利用できます。
+                案件が決まったら、見積・請求・入金確認まで1画面で管理。Freeは永久無料、Proは月980円で全て無制限です。
               </Text>
               <View style={styles.flowBox} lightColor="transparent" darkColor="transparent">
                 {['案件', '見積', '請求', '入金確認'].map((step, index) => (
@@ -348,7 +365,7 @@ export default function HomeScreen() {
                   </Text>
                 ))}
               </View>
-              <Text style={styles.heroPrice}>月3件まで無料。Proは月980円。</Text>
+              <Text style={styles.heroPrice}>Freeは各3件まで永久無料。Proは月980円。</Text>
               <View style={styles.ctaRow} lightColor="transparent" darkColor="transparent">
                 <Link
                   href={{
@@ -369,7 +386,7 @@ export default function HomeScreen() {
                   </Text>
                 </Pressable>
               </View>
-              <Text style={styles.microCopy}>Freeは月3件まで。クレジットカード決済はStripeで安全に処理されます。</Text>
+              <Text style={styles.microCopy}>Proは案件・顧客・見積・請求を無制限で保存できます。決済はStripeで安全に処理されます。</Text>
             </View>
             <View style={styles.heroPreview}>
               <Text style={styles.previewLabel}>案件ボード</Text>
