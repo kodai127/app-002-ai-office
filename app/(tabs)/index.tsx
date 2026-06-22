@@ -210,6 +210,60 @@ export default function HomeScreen() {
     };
   }, []);
 
+  if (!currentUser) {
+    return (
+      <>
+        <SeoHead
+          title="フリーランスの請求漏れをなくす"
+          description="AI Officeは、案件、見積、請求、入金確認を1つのアプリで管理するフリーランス向けSaaSです。"
+        />
+        <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
+          <AppHeader />
+          <View style={styles.simpleContent} lightColor="transparent" darkColor="transparent">
+            <View style={styles.simpleHero}>
+              <Text style={styles.simpleEyebrow}>AI Office</Text>
+              <Text style={styles.simpleTitle}>フリーランスの請求漏れをなくす</Text>
+              <Text style={styles.simpleDescription}>
+                案件→見積→請求→入金確認{'\n'}を1つのアプリで管理
+              </Text>
+              <View style={styles.simpleActions} lightColor="transparent" darkColor="transparent">
+                <Link href="/settings?tab=mypage" style={styles.simplePrimaryLink}>
+                  無料で始める
+                </Link>
+                <Link href={'/projects' as never} style={styles.simpleSecondaryLink}>
+                  デモを見る
+                </Link>
+              </View>
+            </View>
+
+            <View style={styles.simplePricingPanel}>
+              <View style={styles.panelHeader} lightColor="transparent" darkColor="transparent">
+                <Text style={styles.panelTitle}>料金比較</Text>
+                <Text style={styles.panelMeta}>月3件まで無料。継続利用はPro月980円。</Text>
+              </View>
+              <View style={styles.comparisonTable} lightColor="transparent" darkColor="transparent">
+                <View style={styles.comparisonHeader} lightColor="transparent" darkColor="transparent">
+                  <Text style={styles.comparisonFeature}>機能</Text>
+                  <Text style={styles.comparisonCell}>Free</Text>
+                  <Text style={styles.comparisonCell}>Pro</Text>
+                  <Text style={styles.comparisonCell}>Business</Text>
+                </View>
+                {comparisonRows.map((row) => (
+                  <View key={row.feature} style={styles.comparisonRow} lightColor="transparent" darkColor="transparent">
+                    <Text style={styles.comparisonFeature}>{row.feature}</Text>
+                    <Text style={styles.comparisonCell}>{row.free}</Text>
+                    <Text style={styles.comparisonCell}>{row.pro}</Text>
+                    <Text style={styles.comparisonCell}>{row.business}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          </View>
+        </ScrollView>
+      </>
+    );
+  }
+
   return (
     <>
       <SeoHead
@@ -664,6 +718,83 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 760,
     gap: 12,
+  },
+  simpleContent: {
+    width: '100%',
+    maxWidth: 760,
+    gap: 22,
+  },
+  simpleHero: {
+    alignItems: 'flex-start',
+    borderWidth: 1,
+    borderColor: '#dbeafe',
+    borderRadius: 8,
+    backgroundColor: '#ffffff',
+    gap: 18,
+    paddingHorizontal: 22,
+    paddingVertical: 34,
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 0.06,
+    shadowRadius: 30,
+    elevation: 2,
+  },
+  simpleEyebrow: {
+    color: '#2563eb',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  simpleTitle: {
+    color: '#0f172a',
+    fontSize: 34,
+    fontWeight: '900',
+    lineHeight: 42,
+  },
+  simpleDescription: {
+    color: '#475569',
+    fontSize: 17,
+    fontWeight: '700',
+    lineHeight: 28,
+  },
+  simpleActions: {
+    width: '100%',
+    gap: 10,
+  },
+  simplePrimaryLink: {
+    overflow: 'hidden',
+    minHeight: 52,
+    borderRadius: 8,
+    backgroundColor: '#2563eb',
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '900',
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    textAlign: 'center',
+  },
+  simpleSecondaryLink: {
+    overflow: 'hidden',
+    minHeight: 52,
+    borderWidth: 1,
+    borderColor: '#dbeafe',
+    borderRadius: 8,
+    backgroundColor: '#ffffff',
+    color: '#2563eb',
+    fontSize: 16,
+    fontWeight: '900',
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    textAlign: 'center',
+  },
+  simplePricingPanel: {
+    borderWidth: 1,
+    borderColor: '#dbeafe',
+    borderRadius: 8,
+    backgroundColor: '#ffffff',
+    gap: 12,
+    padding: 17,
   },
   dashboardHero: {
     borderWidth: 1,

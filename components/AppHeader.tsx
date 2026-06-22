@@ -1,9 +1,34 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'expo-router';
 import { StyleSheet } from 'react-native';
+import { User } from '@supabase/supabase-js';
 
 import { Text, View } from './Themed';
+import { getCurrentUser } from '@/lib/auth';
 
 export function AppHeader() {
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    getCurrentUser()
+      .then((user) => {
+        if (isMounted) {
+          setCurrentUser(user);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setCurrentUser(null);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   return (
     <View style={styles.header}>
       <View style={styles.brandRow} lightColor="transparent" darkColor="transparent">
@@ -20,26 +45,30 @@ export function AppHeader() {
         </View>
       </View>
       <View style={styles.nav} lightColor="transparent" darkColor="transparent">
-        <Link href={'/projects' as never} style={styles.navLink}>
-          案件
-        </Link>
-        <Link href={'/customers' as never} style={styles.navLink}>
-          顧客
-        </Link>
-        <Link href="/estimate" style={styles.navLink}>
-          見積
-        </Link>
-        <Link href="/invoice" style={styles.navLink}>
-          請求
-        </Link>
+        {currentUser ? (
+          <>
+            <Link href={'/projects' as never} style={styles.navLink}>
+              案件
+            </Link>
+            <Link href={'/customers' as never} style={styles.navLink}>
+              顧客
+            </Link>
+            <Link href="/estimate" style={styles.navLink}>
+              見積
+            </Link>
+            <Link href="/invoice" style={styles.navLink}>
+              請求
+            </Link>
+            <Link href="/settings" style={styles.navLink}>
+              設定
+            </Link>
+          </>
+        ) : null}
         <Link href={'/pricing' as never} style={styles.navLink}>
           料金
         </Link>
-        <Link href="/settings" style={styles.navLink}>
-          設定
-        </Link>
         <Link href="/settings?tab=mypage" style={styles.loginLink}>
-          ログイン
+          {currentUser ? 'マイページ' : 'ログイン'}
         </Link>
       </View>
     </View>

@@ -1,12 +1,36 @@
 import { SymbolView } from 'expo-symbols';
 import { Tabs } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { User } from '@supabase/supabase-js';
 
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { useClientOnlyValue } from '@/components/useClientOnlyValue';
+import { getCurrentUser } from '@/lib/auth';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    getCurrentUser()
+      .then((user) => {
+        if (isMounted) {
+          setCurrentUser(user);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setCurrentUser(null);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   return (
     <Tabs
@@ -47,6 +71,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="projects"
         options={{
+          href: currentUser ? undefined : null,
           title: '案件',
           tabBarIcon: ({ color }) => (
             <SymbolView
@@ -64,6 +89,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="customers"
         options={{
+          href: currentUser ? undefined : null,
           title: '顧客',
           tabBarIcon: ({ color }) => (
             <SymbolView
@@ -81,6 +107,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="estimate"
         options={{
+          href: currentUser ? undefined : null,
           title: '見積',
           tabBarLabel: '見積',
           tabBarIcon: ({ color }) => (
@@ -99,6 +126,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="invoice"
         options={{
+          href: currentUser ? undefined : null,
           title: '請求書',
           tabBarIcon: ({ color }) => (
             <SymbolView
@@ -116,6 +144,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="settings"
         options={{
+          href: currentUser ? undefined : null,
           title: '設定',
           tabBarIcon: ({ color }) => (
             <SymbolView
