@@ -6,6 +6,7 @@ import { AppHeader } from '@/components/AppHeader';
 import { SeoHead } from '@/components/SeoHead';
 import { Text, View } from '@/components/Themed';
 import { getCurrentUser } from '@/lib/auth';
+import { billingPlans, openBillingLink } from '@/lib/billing';
 import { Customer, formatCurrency, getProjectStatusLabel, isOverdue, ProjectRecord, ProjectStatus } from '@/lib/officeData';
 import {
   deleteProjectRecord,
@@ -63,10 +64,18 @@ export default function ProjectsScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [statusMessage, setStatusMessage] = useState('');
+  const [upgradeModalMessage, setUpgradeModalMessage] = useState('');
   const [usageSummary, setUsageSummary] = useState<UsageSummary | null>(null);
   const [userId, setUserId] = useState('');
+  const proPlan = billingPlans.find((plan) => plan.key === 'pro');
   const summary = useMemo(() => summarizeProjects(projects), [projects]);
   const unpaidProjects = useMemo(() => projects.filter((project) => project.status === 'invoiced'), [projects]);
+  const overdueProjects = useMemo(() => unpaidProjects.filter((project) => isOverdue(project.dueDate)), [unpaidProjects]);
+  const nextDueUnpaidProject = useMemo(
+    () => [...unpaidProjects].sort((left, right) => left.dueDate.localeCompare(right.dueDate))[0],
+    [unpaidProjects]
+  );
+  const isPaidPlan = usageSummary?.limit === null;
   const isProjectLimitReached =
     !form.id && usageSummary?.limit !== null && (usageSummary?.counts.projects ?? projects.length) >= freeResourceLimit;
 
@@ -132,6 +141,130 @@ export default function ProjectsScreen() {
     });
   };
 
+  const openUpgradeModal = (message: string) => {
+    setUpgradeModalMessage(message);
+  };
+
+  const handleOpenProCheckout = async () => {
+    if (!proPlan) {
+      return;
+    }
+
+    try {
+      await openBillingLink(proPlan);
+      setUpgradeModalMessage('');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Proの決済ページを開けませんでした。';
+      setStatusMessage(message);
+    }
+  };
+
+  const updateUsageAfterNewProject = () => {
+    setUsageSummary((currentSummary) =>
+      currentSummary
+        ? {
+            ...currentSummary,
+            counts: {
+              ...currentSummary.counts,
+              projects: currentSummary.counts.projects + 1,
+            },
+          }
+        : currentSummary
+    );
+  };
+
+  const upsertProjectInState = (savedProject: ProjectRecord) => {
+    setProjects((currentProjects) => {
+      const exists = currentProjects.some((project) => project.id === savedProject.id);
+
+      if (exists) {
+        return currentProjects.map((project) => (project.id === savedProject.id ? savedProject : project));
+      }
+
+      return [savedProject, ...currentProjects];
+    });
+  };
+
+  const handleCreateSampleProject = async () => {
+    if (!userId) {
+      setStatusMessage('サンプル案件の保存にはログインが必要です。');
+      return;
+    }
+
+    if (isProjectLimitReached) {
+      openUpgradeModal('Freeの案件3件上限に達しています。Proならサンプル案件も含めて無制限に保存できます。');
+      return;
+    }
+
+    setIsSaving(true);
+    setStatusMessage('サンプル案件を作成しています...');
+
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + 14);
+
+    try {
+      const savedProject = await upsertProject({
+        amount: 120000,
+        customerId: customers[0]?.id ?? '',
+        customerName: customers[0]?.name ?? 'サンプル顧客',
+        dueDate: dueDate.toISOString().slice(0, 10),
+        memo: '初回オンボーディング用のサンプル案件です。請求済みとして未入金管理を確認できます。',
+        name: 'サンプルLP制作案件',
+        status: 'invoiced',
+      });
+
+      upsertProjectInState(savedProject);
+      updateUsageAfterNewProject();
+      setStatusMessage(`サンプル案件を作成しました。ID: ${savedProject.id}`);
+    } catch (error) {
+      const message = formatSupabaseError(error);
+      console.error('サンプル案件作成エラー', { error });
+      setStatusMessage(`サンプル案件の作成に失敗しました。${message}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleExportProjectsCsv = () => {
+    if (!isPaidPlan) {
+      openUpgradeModal('CSV出力はPro機能です。Proなら案件一覧をCSVで出力できます。');
+      return;
+    }
+
+    if (projects.length === 0) {
+      setStatusMessage('CSV出力できる案件がありません。');
+      return;
+    }
+
+    if (typeof document === 'undefined') {
+      setStatusMessage('CSV出力はWebブラウザで利用できます。');
+      return;
+    }
+
+    const escapeCsv = (value: string | number) => `"${String(value).replace(/"/g, '""')}"`;
+    const rows = [
+      ['案件名', '顧客', '金額', 'ステータス', '期限', 'メモ'],
+      ...projects.map((project) => [
+        project.name,
+        project.customerName,
+        project.amount,
+        getProjectStatusLabel(project.status),
+        project.dueDate,
+        project.memo,
+      ]),
+    ];
+    const csv = rows.map((row) => row.map(escapeCsv).join(',')).join('\n');
+    const blob = new Blob(['\ufeff', csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+
+    link.href = url;
+    link.download = `ai-office-projects-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    setStatusMessage('案件CSVを出力しました。');
+  };
+
   const handleSaveProject = async () => {
     const amount = Number(form.amount);
 
@@ -151,7 +284,7 @@ export default function ProjectsScreen() {
     }
 
     if (isProjectLimitReached) {
-      setStatusMessage('Freeプランの案件保存は3件までです。Proなら案件を無制限で保存できます。');
+      openUpgradeModal('Freeプランの案件保存は3件までです。Proなら案件を無制限で保存できます。');
       return;
     }
 
@@ -170,26 +303,10 @@ export default function ProjectsScreen() {
         status: form.status,
       });
 
-      setProjects((currentProjects) => {
-        const exists = currentProjects.some((project) => project.id === savedProject.id);
-
-        if (exists) {
-          return currentProjects.map((project) => (project.id === savedProject.id ? savedProject : project));
-        }
-
-        return [savedProject, ...currentProjects];
-      });
-      setUsageSummary((currentSummary) =>
-        currentSummary && !form.id
-          ? {
-              ...currentSummary,
-              counts: {
-                ...currentSummary.counts,
-                projects: currentSummary.counts.projects + 1,
-              },
-            }
-          : currentSummary
-      );
+      upsertProjectInState(savedProject);
+      if (!form.id) {
+        updateUsageAfterNewProject();
+      }
       resetForm();
       setStatusMessage(`案件を保存しました。ID: ${savedProject.id}`);
     } catch (error) {
@@ -273,7 +390,6 @@ export default function ProjectsScreen() {
               Web制作、動画編集、AI開発、デザイン、ライター案件の見積・請求・未入金をSupabaseに保存します。
             </Text>
             <Text style={styles.statusMessage}>{statusMessage}</Text>
-            <Text style={styles.diagnosticText}>ログインuser_id: {userId || '未ログイン'}</Text>
           </View>
 
           <View style={styles.metricGrid} lightColor="transparent" darkColor="transparent">
@@ -286,6 +402,34 @@ export default function ProjectsScreen() {
             <MetricCard label="進行中案件" value={`${summary.activeCount}件`} />
             <MetricCard label="請求済み" value={`${summary.invoicedCount}件`} />
             <MetricCard label="入金済み" value={`${summary.paidCount}件`} />
+          </View>
+
+          {projects.length === 0 ? (
+            <View style={styles.onboardingPanel}>
+              <Text style={styles.panelTitle}>まずはサンプル案件で流れを確認</Text>
+              <Text style={styles.panelMeta}>案件、請求、未入金、入金済み更新までを1分で確認できます。</Text>
+              {['サンプル案件を作成', '未入金一覧で確認', '入金済みに変更'].map((step, index) => (
+                <View key={step} style={styles.onboardingStep} lightColor="transparent" darkColor="transparent">
+                  <Text style={styles.stepNumber}>{index + 1}</Text>
+                  <Text style={styles.stepText}>{step}</Text>
+                </View>
+              ))}
+              <Pressable style={styles.primaryButton} onPress={handleCreateSampleProject} disabled={isSaving}>
+                <Text style={styles.primaryButtonText}>{isSaving ? '作成中...' : 'サンプル案件を作成'}</Text>
+              </Pressable>
+            </View>
+          ) : null}
+
+          <View style={styles.actionPanel}>
+            <View style={styles.panelHeader} lightColor="transparent" darkColor="transparent">
+              <Text style={styles.panelTitle}>案件データ活用</Text>
+              <Text style={styles.panelMeta}>ProはCSV出力で売上集計や会計ソフトへの転記を進められます。</Text>
+            </View>
+            <Pressable style={isPaidPlan ? styles.primaryButton : styles.secondaryButton} onPress={handleExportProjectsCsv}>
+              <Text style={isPaidPlan ? styles.primaryButtonText : styles.secondaryButtonText}>
+                {isPaidPlan ? '案件CSVを出力' : 'ProでCSV出力'}
+              </Text>
+            </Pressable>
           </View>
 
           <View style={styles.panel}>
@@ -384,6 +528,16 @@ export default function ProjectsScreen() {
               <Text style={styles.panelTitle}>未入金管理</Text>
               <Text style={styles.panelMeta}>期限超過と未入金額をすぐ確認できます。</Text>
             </View>
+            <View style={styles.reminderCard}>
+              <Text style={styles.reminderTitle}>
+                {overdueProjects.length > 0 ? `期限超過 ${overdueProjects.length}件` : '期限超過はありません'}
+              </Text>
+              <Text style={styles.reminderText}>
+                {nextDueUnpaidProject
+                  ? `次の入金期限: ${nextDueUnpaidProject.name} / ${nextDueUnpaidProject.dueDate} / ${formatCurrency(nextDueUnpaidProject.amount)}`
+                  : '請求済みの未入金案件はありません。'}
+              </Text>
+            </View>
             {unpaidProjects.length > 0 ? (
               unpaidProjects.map((project) => (
                 <ProjectCard
@@ -432,6 +586,21 @@ export default function ProjectsScreen() {
             </Pressable>
             <Pressable style={styles.secondaryButton} onPress={() => setDeleteTarget(null)}>
               <Text style={styles.secondaryButtonText}>キャンセル</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal transparent visible={Boolean(upgradeModalMessage)} animationType="fade" onRequestClose={() => setUpgradeModalMessage('')}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.panelTitle}>Proで無制限利用</Text>
+            <Text style={styles.panelMeta}>{upgradeModalMessage}</Text>
+            <Pressable style={styles.primaryButton} onPress={handleOpenProCheckout}>
+              <Text style={styles.primaryButtonText}>980円でProにする</Text>
+            </Pressable>
+            <Pressable style={styles.secondaryButton} onPress={() => setUpgradeModalMessage('')}>
+              <Text style={styles.secondaryButtonText}>あとで見る</Text>
             </Pressable>
           </View>
         </View>
@@ -639,12 +808,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     lineHeight: 18,
   },
-  diagnosticText: {
-    color: '#475569',
-    fontSize: 11,
-    fontWeight: '700',
-    lineHeight: 16,
-  },
   metricGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -685,6 +848,46 @@ const styles = StyleSheet.create({
     gap: 12,
     padding: 16,
   },
+  actionPanel: {
+    borderWidth: 1,
+    borderColor: '#dbeafe',
+    borderRadius: 8,
+    backgroundColor: '#ffffff',
+    gap: 12,
+    padding: 16,
+  },
+  onboardingPanel: {
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+    borderRadius: 8,
+    backgroundColor: '#eff6ff',
+    gap: 12,
+    padding: 16,
+  },
+  onboardingStep: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 10,
+  },
+  stepNumber: {
+    overflow: 'hidden',
+    borderRadius: 999,
+    backgroundColor: '#2563eb',
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '900',
+    minWidth: 26,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    textAlign: 'center',
+  },
+  stepText: {
+    color: '#1e3a8a',
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '900',
+    lineHeight: 20,
+  },
   upgradeBox: {
     borderWidth: 1,
     borderColor: '#bfdbfe',
@@ -696,6 +899,25 @@ const styles = StyleSheet.create({
   unpaidPanel: {
     borderColor: '#fed7aa',
     backgroundColor: '#fff7ed',
+  },
+  reminderCard: {
+    borderWidth: 1,
+    borderColor: '#fed7aa',
+    borderRadius: 8,
+    backgroundColor: '#ffffff',
+    gap: 5,
+    padding: 13,
+  },
+  reminderTitle: {
+    color: '#dc2626',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  reminderText: {
+    color: '#7c2d12',
+    fontSize: 13,
+    fontWeight: '800',
+    lineHeight: 19,
   },
   panelHeader: {
     gap: 3,
