@@ -5,6 +5,7 @@ import { Link } from 'expo-router';
 import { AppHeader } from '@/components/AppHeader';
 import { SeoHead } from '@/components/SeoHead';
 import { Text, View } from '@/components/Themed';
+import { getCurrentUser } from '@/lib/auth';
 import { Customer } from '@/lib/officeData';
 import {
   createCustomerDraft,
@@ -34,6 +35,7 @@ export default function CustomersScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
   const [usageSummary, setUsageSummary] = useState<UsageSummary | null>(null);
+  const [userId, setUserId] = useState('');
   const isCustomerLimitReached =
     !form.id && usageSummary?.limit !== null && (usageSummary?.counts.customers ?? customers.length) >= freeResourceLimit;
 
@@ -46,6 +48,16 @@ export default function CustomersScreen() {
     setStatusMessage('顧客を読み込んでいます...');
 
     try {
+      const currentUser = await getCurrentUser();
+
+      setUserId(currentUser?.id ?? '');
+
+      if (!currentUser) {
+        setStatusMessage('顧客管理にはログインが必要です。');
+        setCustomers([]);
+        return;
+      }
+
       const [nextCustomers, nextUsageSummary] = await Promise.all([fetchCustomers(), fetchUsageSummary()]);
       setCustomers(nextCustomers);
       setUsageSummary(nextUsageSummary);
@@ -59,6 +71,33 @@ export default function CustomersScreen() {
       setIsLoading(false);
     }
   };
+
+  if (!isLoading && !userId) {
+    return (
+      <>
+        <SeoHead
+          title="顧客管理"
+          description="フリーランス案件の顧客情報を管理し、見積・請求・入金確認へつなげます。"
+          path="/customers"
+        />
+        <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
+          <AppHeader />
+          <View style={styles.content} lightColor="transparent" darkColor="transparent">
+            <View style={styles.hero}>
+              <Text style={styles.eyebrow}>Customers</Text>
+              <Text style={styles.title}>顧客管理はログイン後に利用できます</Text>
+              <Text style={styles.description}>
+                無料登録すると、顧客ごとに案件・見積・請求をまとめて保存できます。
+              </Text>
+              <Link href="/settings?tab=mypage" style={styles.primaryLinkSmall}>
+                無料で始める
+              </Link>
+            </View>
+          </View>
+        </ScrollView>
+      </>
+    );
+  }
 
   const resetForm = () => {
     setForm(initialForm);

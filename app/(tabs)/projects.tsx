@@ -422,6 +422,33 @@ export default function ProjectsScreen() {
     }
   };
 
+  if (!isLoading && !userId) {
+    return (
+      <>
+        <SeoHead
+          title="案件管理"
+          description="AI Officeは、フリーランスの案件、見積、請求、入金確認を1画面で管理するSaaSです。"
+          path="/projects"
+        />
+        <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
+          <AppHeader />
+          <View style={styles.content} lightColor="transparent" darkColor="transparent">
+            <View style={styles.hero}>
+              <Text style={styles.eyebrow}>Projects</Text>
+              <Text style={styles.title}>案件管理はログイン後に利用できます</Text>
+              <Text style={styles.description}>
+                無料登録すると、顧客・案件・見積・請求のサンプルを作成して、入金確認までの流れを試せます。
+              </Text>
+              <Link href="/settings?tab=mypage" style={styles.primaryLinkSmall}>
+                無料で始める
+              </Link>
+            </View>
+          </View>
+        </ScrollView>
+      </>
+    );
+  }
+
   return (
     <>
       <SeoHead

@@ -339,20 +339,22 @@ export default function SettingsScreen() {
             <Text style={styles.syncStatus}>{syncStatus}</Text>
           </View>
 
-          <UsageLimitPanel refreshKey={billingStatus} />
+          {currentUser ? <UsageLimitPanel refreshKey={billingStatus} /> : null}
 
-          <View style={styles.segmented} lightColor="transparent" darkColor="transparent">
-            <SegmentButton active={activeTab === 'dashboard'} label="ダッシュボード" onPress={() => setActiveTab('dashboard')} />
-            <SegmentButton active={activeTab === 'projects'} label="案件" onPress={() => setActiveTab('projects')} />
-            <SegmentButton active={activeTab === 'customers'} label="顧客" onPress={() => setActiveTab('customers')} />
-            <SegmentButton active={activeTab === 'estimates'} label="見積" onPress={() => setActiveTab('estimates')} />
-            <SegmentButton active={activeTab === 'invoices'} label="請求" onPress={() => setActiveTab('invoices')} />
-            <SegmentButton active={activeTab === 'billing'} label="料金" onPress={() => setActiveTab('billing')} />
-            <SegmentButton active={activeTab === 'mypage'} label="マイページ" onPress={() => setActiveTab('mypage')} />
-            <SegmentButton active={activeTab === 'supabase'} label="DB設計" onPress={() => setActiveTab('supabase')} />
-          </View>
+          {currentUser ? (
+            <View style={styles.segmented} lightColor="transparent" darkColor="transparent">
+              <SegmentButton active={activeTab === 'dashboard'} label="ダッシュボード" onPress={() => setActiveTab('dashboard')} />
+              <SegmentButton active={activeTab === 'projects'} label="案件" onPress={() => setActiveTab('projects')} />
+              <SegmentButton active={activeTab === 'customers'} label="顧客" onPress={() => setActiveTab('customers')} />
+              <SegmentButton active={activeTab === 'estimates'} label="見積" onPress={() => setActiveTab('estimates')} />
+              <SegmentButton active={activeTab === 'invoices'} label="請求" onPress={() => setActiveTab('invoices')} />
+              <SegmentButton active={activeTab === 'billing'} label="料金" onPress={() => setActiveTab('billing')} />
+              <SegmentButton active={activeTab === 'mypage'} label="マイページ" onPress={() => setActiveTab('mypage')} />
+              <SegmentButton active={activeTab === 'supabase'} label="DB設計" onPress={() => setActiveTab('supabase')} />
+            </View>
+          ) : null}
 
-          {activeTab === 'dashboard' ? (
+          {currentUser && activeTab === 'dashboard' ? (
             <View style={styles.panel}>
               <View style={styles.panelHeader} lightColor="transparent" darkColor="transparent">
                 <View lightColor="transparent" darkColor="transparent">
@@ -414,7 +416,7 @@ export default function SettingsScreen() {
             </View>
           ) : null}
 
-          {activeTab === 'projects' ? (
+          {currentUser && activeTab === 'projects' ? (
           <View style={styles.panel}>
             <View style={styles.panelHeader} lightColor="transparent" darkColor="transparent">
               <View lightColor="transparent" darkColor="transparent">
@@ -509,7 +511,7 @@ export default function SettingsScreen() {
           </View>
           ) : null}
 
-          {activeTab === 'customers' ? (
+          {currentUser && activeTab === 'customers' ? (
           <>
             <View style={styles.panel}>
               <View style={styles.panelHeader} lightColor="transparent" darkColor="transparent">
@@ -595,7 +597,7 @@ export default function SettingsScreen() {
           </>
           ) : null}
 
-          {activeTab === 'estimates' ? (
+          {currentUser && activeTab === 'estimates' ? (
           <View style={styles.panel}>
             <View style={styles.panelHeader} lightColor="transparent" darkColor="transparent">
               <View lightColor="transparent" darkColor="transparent">
@@ -622,7 +624,7 @@ export default function SettingsScreen() {
           </View>
           ) : null}
 
-          {activeTab === 'invoices' ? (
+          {currentUser && activeTab === 'invoices' ? (
           <View style={styles.panel}>
             <View style={styles.panelHeader} lightColor="transparent" darkColor="transparent">
               <View lightColor="transparent" darkColor="transparent">
@@ -647,7 +649,7 @@ export default function SettingsScreen() {
           </View>
           ) : null}
 
-          {activeTab === 'billing' ? (
+          {currentUser && activeTab === 'billing' ? (
           <View style={styles.panel}>
             <View style={styles.panelHeader} lightColor="transparent" darkColor="transparent">
               <View lightColor="transparent" darkColor="transparent">
@@ -703,7 +705,7 @@ export default function SettingsScreen() {
           </View>
           ) : null}
 
-          {activeTab === 'mypage' ? (
+          {!currentUser || activeTab === 'mypage' ? (
           <View style={styles.panel}>
             <View style={styles.panelHeader} lightColor="transparent" darkColor="transparent">
               <View lightColor="transparent" darkColor="transparent">
@@ -752,7 +754,7 @@ export default function SettingsScreen() {
           </View>
           ) : null}
 
-          {activeTab === 'supabase' ? (
+          {currentUser && activeTab === 'supabase' ? (
           <View style={styles.panel}>
             <View style={styles.panelHeader} lightColor="transparent" darkColor="transparent">
               <View lightColor="transparent" darkColor="transparent">
