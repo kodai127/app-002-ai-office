@@ -137,6 +137,12 @@ module.exports = async function handler(request, response) {
     return sendJson(response, 405, { error: 'Method not allowed' });
   }
 
+  const signature = request.headers['stripe-signature'];
+
+  if (!signature) {
+    return sendJson(response, 400, { error: 'Invalid webhook signature' });
+  }
+
   if (!process.env.STRIPE_SECRET_KEY || !process.env.STRIPE_WEBHOOK_SECRET) {
     return sendJson(response, 500, { error: 'Stripe webhook environment variables are not configured' });
   }
@@ -145,7 +151,6 @@ module.exports = async function handler(request, response) {
     return sendJson(response, 500, { error: 'Supabase server environment variables are not configured' });
   }
 
-  const signature = request.headers['stripe-signature'];
   const rawBody = await readRawBody(request);
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
   let event;
