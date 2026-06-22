@@ -44,33 +44,31 @@ export function AppHeader() {
           <Text style={styles.tagline}>案件から入金まで管理するSaaS</Text>
         </View>
       </View>
-      <View style={styles.nav} lightColor="transparent" darkColor="transparent">
-        {currentUser ? (
-          <>
-            <Link href={'/projects' as never} style={styles.navLink}>
-              案件
-            </Link>
-            <Link href={'/customers' as never} style={styles.navLink}>
-              顧客
-            </Link>
-            <Link href="/estimate" style={styles.navLink}>
-              見積
-            </Link>
-            <Link href="/invoice" style={styles.navLink}>
-              請求
-            </Link>
-            <Link href="/settings" style={styles.navLink}>
-              設定
-            </Link>
-          </>
-        ) : null}
-        <Link href={'/pricing' as never} style={styles.navLink}>
-          料金
-        </Link>
-        <Link href="/settings?tab=mypage" style={styles.loginLink}>
-          {currentUser ? 'マイページ' : 'ログイン'}
-        </Link>
-      </View>
+      {currentUser ? (
+        <View style={styles.nav} lightColor="transparent" darkColor="transparent">
+          <Link href={'/projects' as never} style={styles.navLink}>
+            案件
+          </Link>
+          <Link href={'/customers' as never} style={styles.navLink}>
+            顧客
+          </Link>
+          <Link href="/estimate" style={styles.navLink}>
+            見積
+          </Link>
+          <Link href="/invoice" style={styles.navLink}>
+            請求
+          </Link>
+          <Link href="/settings" style={styles.navLink}>
+            設定
+          </Link>
+          <Link href={'/pricing' as never} style={styles.navLink}>
+            料金
+          </Link>
+          <Link href="/settings?tab=mypage" style={styles.loginLink}>
+            マイページ
+          </Link>
+        </View>
+      ) : null}
     </View>
   );
 }

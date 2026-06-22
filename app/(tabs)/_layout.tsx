@@ -10,6 +10,7 @@ import { getCurrentUser } from '@/lib/auth';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
+  const defaultHeaderShown = useClientOnlyValue(false, true);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
 
   useEffect(() => {
@@ -39,6 +40,7 @@ export default function TabLayout() {
         tabBarStyle: {
           borderTopColor: '#e5e7eb',
           backgroundColor: '#ffffff',
+          display: currentUser ? 'flex' : 'none',
           height: 60,
           paddingBottom: 6,
           paddingTop: 6,
@@ -49,7 +51,7 @@ export default function TabLayout() {
         },
         // Disable the static render of the header on web
         // to prevent a hydration error in React Navigation v6.
-        headerShown: useClientOnlyValue(false, true),
+        headerShown: currentUser ? defaultHeaderShown : false,
       }}>
       <Tabs.Screen
         name="index"

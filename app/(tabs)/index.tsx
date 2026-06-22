@@ -99,6 +99,13 @@ const comparisonRows = [
   { feature: 'チーム機能', free: '-', pro: '-', business: '準備中' },
 ];
 
+const demoMetrics = [
+  { label: '案件数', value: '4件' },
+  { label: '未入金件数', value: '2件' },
+  { label: '未入金金額', value: '392,000円' },
+  { label: '顧客数', value: '3社' },
+];
+
 function getPlanLabel(plan?: string) {
   if (plan === 'business') {
     return 'Business';
@@ -261,26 +268,22 @@ export default function HomeScreen() {
               </View>
             </View>
 
-            <View style={styles.simplePricingPanel}>
+            <View style={styles.demoPanel}>
               <View style={styles.panelHeader} lightColor="transparent" darkColor="transparent">
-                <Text style={styles.panelTitle}>料金比較</Text>
-                <Text style={styles.panelMeta}>Freeは永久無料。各3件まで、Proは月980円で無制限。</Text>
+                <Text style={styles.panelTitle}>登録後のサンプル画面</Text>
+                <Text style={styles.panelMeta}>案件、請求、入金状況をカードで確認できます。</Text>
               </View>
-              <View style={styles.comparisonTable} lightColor="transparent" darkColor="transparent">
-                <View style={styles.comparisonHeader} lightColor="transparent" darkColor="transparent">
-                  <Text style={styles.comparisonFeature}>機能</Text>
-                  <Text style={styles.comparisonCell}>Free</Text>
-                  <Text style={styles.comparisonCell}>Pro</Text>
-                  <Text style={styles.comparisonCell}>Business</Text>
-                </View>
-                {comparisonRows.map((row) => (
-                  <View key={row.feature} style={styles.comparisonRow} lightColor="transparent" darkColor="transparent">
-                    <Text style={styles.comparisonFeature}>{row.feature}</Text>
-                    <Text style={styles.comparisonCell}>{row.free}</Text>
-                    <Text style={styles.comparisonCell}>{row.pro}</Text>
-                    <Text style={styles.comparisonCell}>{row.business}</Text>
+              <View style={styles.demoGrid} lightColor="transparent" darkColor="transparent">
+                {demoMetrics.map((metric) => (
+                  <View key={metric.label} style={styles.demoMetric}>
+                    <Text style={styles.demoMetricLabel}>{metric.label}</Text>
+                    <Text style={styles.demoMetricValue}>{metric.value}</Text>
                   </View>
                 ))}
+              </View>
+              <View style={styles.simplePlanStrip}>
+                <Text style={styles.simplePlanTitle}>Freeは永久無料</Text>
+                <Text style={styles.simplePlanText}>案件・顧客・見積・請求を各3件まで。Proは月980円で無制限、CSV出力と未入金管理に対応。</Text>
               </View>
             </View>
           </View>
@@ -874,13 +877,57 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     textAlign: 'center',
   },
-  simplePricingPanel: {
+  demoPanel: {
     borderWidth: 1,
     borderColor: '#dbeafe',
     borderRadius: 8,
     backgroundColor: '#ffffff',
     gap: 12,
     padding: 17,
+  },
+  demoGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  demoMetric: {
+    flexBasis: 135,
+    flexGrow: 1,
+    borderWidth: 1,
+    borderColor: '#dbeafe',
+    borderRadius: 8,
+    backgroundColor: '#f8fafc',
+    gap: 5,
+    padding: 14,
+  },
+  demoMetricLabel: {
+    color: '#64748b',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  demoMetricValue: {
+    color: '#0f172a',
+    fontSize: 24,
+    fontWeight: '900',
+  },
+  simplePlanStrip: {
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+    borderRadius: 8,
+    backgroundColor: '#eff6ff',
+    gap: 5,
+    padding: 13,
+  },
+  simplePlanTitle: {
+    color: '#1d4ed8',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  simplePlanText: {
+    color: '#1e3a8a',
+    fontSize: 13,
+    fontWeight: '800',
+    lineHeight: 19,
   },
   dashboardHero: {
     borderWidth: 1,

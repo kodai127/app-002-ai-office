@@ -15,8 +15,11 @@ import {
   fetchUsageSummary,
   formatSupabaseError,
   freeResourceLimit,
+  saveEstimateRecord,
+  saveInvoiceRecord,
   summarizeProjects,
   updateProjectStatus,
+  upsertCustomer,
   upsertProject,
   UsageSummary,
 } from '@/lib/supabaseRepositories';
@@ -78,6 +81,12 @@ export default function ProjectsScreen() {
   const isPaidPlan = usageSummary?.limit === null;
   const isProjectLimitReached =
     !form.id && usageSummary?.limit !== null && (usageSummary?.counts.projects ?? projects.length) >= freeResourceLimit;
+  const isSampleLimitReached =
+    usageSummary?.limit !== null &&
+    ((usageSummary?.counts.projects ?? projects.length) >= freeResourceLimit ||
+      (usageSummary?.counts.customers ?? customers.length) >= freeResourceLimit ||
+      (usageSummary?.counts.estimates ?? 0) >= freeResourceLimit ||
+      (usageSummary?.counts.invoices ?? 0) >= freeResourceLimit);
 
   useEffect(() => {
     getCurrentUser().then((currentUser) => {
@@ -159,14 +168,17 @@ export default function ProjectsScreen() {
     }
   };
 
-  const updateUsageAfterNewProject = () => {
+  const updateUsageCounts = (counts: Partial<UsageSummary['counts']>) => {
     setUsageSummary((currentSummary) =>
       currentSummary
         ? {
             ...currentSummary,
             counts: {
               ...currentSummary.counts,
-              projects: currentSummary.counts.projects + 1,
+              customers: currentSummary.counts.customers + (counts.customers ?? 0),
+              estimates: currentSummary.counts.estimates + (counts.estimates ?? 0),
+              invoices: currentSummary.counts.invoices + (counts.invoices ?? 0),
+              projects: currentSummary.counts.projects + (counts.projects ?? 0),
             },
           }
         : currentSummary
@@ -191,35 +203,72 @@ export default function ProjectsScreen() {
       return;
     }
 
-    if (isProjectLimitReached) {
-      openUpgradeModal('Freeの案件3件上限に達しています。Proならサンプル案件も含めて無制限に保存できます。');
+    if (isSampleLimitReached) {
+      openUpgradeModal('Freeのいずれかの保存上限に達しています。Proなら顧客・案件・見積・請求のサンプルも無制限に保存できます。');
       return;
     }
 
     setIsSaving(true);
-    setStatusMessage('サンプル案件を作成しています...');
+    setStatusMessage('サンプルデータを作成しています...');
 
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 14);
+    const today = new Date().toISOString().slice(0, 10);
 
     try {
+      const savedCustomer = await upsertCustomer({
+        address: '',
+        contactName: '山田 太郎',
+        createdAt: today,
+        email: 'sample@example.com',
+        id: '',
+        memo: '初回オンボーディング用のサンプル顧客です。',
+        name: 'サンプル株式会社',
+        phone: '03-1234-5678',
+        updatedAt: today,
+      });
       const savedProject = await upsertProject({
         amount: 120000,
-        customerId: customers[0]?.id ?? '',
-        customerName: customers[0]?.name ?? 'サンプル顧客',
+        customerId: savedCustomer.id,
+        customerName: savedCustomer.name,
         dueDate: dueDate.toISOString().slice(0, 10),
         memo: '初回オンボーディング用のサンプル案件です。請求済みとして未入金管理を確認できます。',
         name: 'サンプルLP制作案件',
         status: 'invoiced',
       });
+      await saveEstimateRecord({
+        amount: 120000,
+        customerName: savedCustomer.name,
+        hourlyRate: 10000,
+        hours: 12,
+        projectName: 'サンプルLP制作案件',
+        workDescription: '構成作成、デザイン、実装、公開作業',
+      });
+      await saveInvoiceRecord({
+        amount: 120000,
+        customerName: savedCustomer.name,
+        dueDate: dueDate.toISOString().slice(0, 10),
+        hourlyRate: 10000,
+        hours: 12,
+        invoiceNumber: `INV-SAMPLE-${Date.now()}`,
+        issueDate: today,
+        projectName: 'サンプルLP制作案件',
+        workDescription: '構成作成、デザイン、実装、公開作業',
+      });
 
+      setCustomers((currentCustomers) => [savedCustomer, ...currentCustomers]);
       upsertProjectInState(savedProject);
-      updateUsageAfterNewProject();
-      setStatusMessage(`サンプル案件を作成しました。ID: ${savedProject.id}`);
+      updateUsageCounts({
+        customers: 1,
+        estimates: 1,
+        invoices: 1,
+        projects: 1,
+      });
+      setStatusMessage(`サンプル顧客・案件・見積・請求を作成しました。案件ID: ${savedProject.id}`);
     } catch (error) {
       const message = formatSupabaseError(error);
-      console.error('サンプル案件作成エラー', { error });
-      setStatusMessage(`サンプル案件の作成に失敗しました。${message}`);
+      console.error('サンプルデータ作成エラー', { error });
+      setStatusMessage(`サンプルデータの作成に失敗しました。${message}`);
     } finally {
       setIsSaving(false);
     }
@@ -305,7 +354,7 @@ export default function ProjectsScreen() {
 
       upsertProjectInState(savedProject);
       if (!form.id) {
-        updateUsageAfterNewProject();
+        updateUsageCounts({ projects: 1 });
       }
       resetForm();
       setStatusMessage(`案件を保存しました。ID: ${savedProject.id}`);
@@ -406,9 +455,9 @@ export default function ProjectsScreen() {
 
           {projects.length === 0 ? (
             <View style={styles.onboardingPanel}>
-              <Text style={styles.panelTitle}>まずはサンプル案件で流れを確認</Text>
-              <Text style={styles.panelMeta}>案件、請求、未入金、入金済み更新までを1分で確認できます。</Text>
-              {['サンプル案件を作成', '未入金一覧で確認', '入金済みに変更'].map((step, index) => (
+              <Text style={styles.panelTitle}>まずはサンプルデータで流れを確認</Text>
+              <Text style={styles.panelMeta}>顧客、案件、見積、請求をまとめて作成し、入金確認までを1分で確認できます。</Text>
+              {['顧客・案件・見積・請求を作成', '未入金一覧で確認', '入金済みに変更'].map((step, index) => (
                 <View key={step} style={styles.onboardingStep} lightColor="transparent" darkColor="transparent">
                   <Text style={styles.stepNumber}>{index + 1}</Text>
                   <Text style={styles.stepText}>{step}</Text>
