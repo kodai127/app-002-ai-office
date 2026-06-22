@@ -31,8 +31,8 @@ export const billingPlans: BillingPlan[] = [
     title: 'Pro',
   },
   {
-    description: '小規模チーム・複数案件運用向け',
-    features: ['Pro機能すべて', 'チーム機能準備', '高度な分析'],
+    description: '将来のチーム機能に備える事業者向け',
+    features: ['Pro機能すべて', 'チーム機能準備', '複数人運用の準備'],
     key: 'business',
     monthlyPrice: '2,980円',
     paymentLink: businessPaymentLink,

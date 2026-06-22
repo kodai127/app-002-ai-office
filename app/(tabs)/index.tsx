@@ -96,7 +96,7 @@ const comparisonRows = [
   { feature: '請求', free: '3件', pro: '無制限', business: '無制限' },
   { feature: '未入金管理', free: '-', pro: '対応', business: '対応' },
   { feature: 'CSV出力', free: '-', pro: '対応', business: '対応' },
-  { feature: '高度な分析', free: '-', pro: '-', business: '対応' },
+  { feature: 'チーム機能', free: '-', pro: '-', business: '準備中' },
 ];
 
 function getPlanLabel(plan?: string) {
@@ -117,6 +117,14 @@ function formatResourceUsage(count: number, summary: UsageSummary | null) {
   }
 
   return `${count}/${freeResourceLimit}`;
+}
+
+function hasReachedFreeLimit(summary: UsageSummary | null) {
+  if (!summary || summary.limit === null) {
+    return false;
+  }
+
+  return Object.values(summary.counts).some((count) => count >= freeResourceLimit);
 }
 
 export default function HomeScreen() {
@@ -147,6 +155,7 @@ export default function HomeScreen() {
       }),
     [unpaidProjects]
   );
+  const freeLimitReached = hasReachedFreeLimit(usageSummary);
   const contactUrl = useMemo(() => {
     const body = [
       `お名前: ${contactName}`,
@@ -233,15 +242,21 @@ export default function HomeScreen() {
             <View style={styles.simpleHero}>
               <Text style={styles.simpleEyebrow}>AI Office</Text>
               <Text style={styles.simpleTitle}>フリーランスの請求漏れをなくす</Text>
-              <Text style={styles.simpleDescription}>
-                案件→見積→請求→入金確認{'\n'}を1つのアプリで管理
-              </Text>
+              <View style={styles.simpleFlow} lightColor="transparent" darkColor="transparent">
+                {['案件', '見積', '請求', '入金確認'].map((step, index) => (
+                  <View key={step} style={styles.simpleFlowStep} lightColor="transparent" darkColor="transparent">
+                    <Text style={styles.simpleFlowText}>{step}</Text>
+                    {index < 3 ? <Text style={styles.simpleFlowArrow}>↓</Text> : null}
+                  </View>
+                ))}
+              </View>
+              <Text style={styles.simpleDescription}>を1つのアプリで管理</Text>
               <View style={styles.simpleActions} lightColor="transparent" darkColor="transparent">
                 <Link href="/settings?tab=mypage" style={styles.simplePrimaryLink}>
                   無料で始める
                 </Link>
-                <Link href={'/projects' as never} style={styles.simpleSecondaryLink}>
-                  デモを見る
+                <Link href="/settings?tab=mypage" style={styles.simpleSecondaryLink}>
+                  ログイン
                 </Link>
               </View>
             </View>
@@ -306,10 +321,22 @@ export default function HomeScreen() {
                 note="入金済み案件"
               />
               <DashboardCard
-                label="未入金"
+                label="未入金総額"
+                value={formatCurrency(projectSummary.outstandingAmount)}
+                note="請求済み・入金待ち"
+                danger={projectSummary.outstandingAmount > 0}
+              />
+              <DashboardCard
+                label="未入金件数"
                 value={`${projectSummary.invoicedCount}件`}
-                note={`総額 ${formatCurrency(projectSummary.outstandingAmount)}`}
-                danger
+                note={`${overdueUnpaidProjects.length}件が期限超過`}
+                danger={overdueUnpaidProjects.length > 0}
+              />
+              <DashboardCard
+                label="期限超過"
+                value={`${overdueUnpaidProjects.length}件`}
+                note="赤表示の案件を優先確認"
+                danger={overdueUnpaidProjects.length > 0}
               />
               <DashboardCard
                 label="案件"
@@ -332,6 +359,25 @@ export default function HomeScreen() {
                 note="保存済み請求"
               />
             </View>
+            {freeLimitReached ? (
+              <View style={styles.upgradeBanner}>
+                <View lightColor="transparent" darkColor="transparent">
+                  <Text style={styles.upgradeTitle}>Freeの上限に達しています</Text>
+                  <Text style={styles.upgradeText}>Proなら案件・顧客・見積・請求を無制限で利用できます。</Text>
+                </View>
+                <Pressable
+                  style={styles.upgradeButton}
+                  onPress={() => {
+                    if (proPlan?.paymentLink) {
+                      handleOpenPaymentLink(proPlan.paymentLink);
+                    }
+                  }}>
+                  <Text style={styles.upgradeButtonText} lightColor="#ffffff" darkColor="#ffffff">
+                    Proで無制限利用
+                  </Text>
+                </Pressable>
+              </View>
+            ) : null}
             <View style={styles.dashboardActions} lightColor="transparent" darkColor="transparent">
               <Link href={'/projects' as never} style={styles.dashboardPrimaryLink}>
                 案件を管理
@@ -771,9 +817,32 @@ const styles = StyleSheet.create({
   },
   simpleDescription: {
     color: '#475569',
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: '700',
-    lineHeight: 28,
+    lineHeight: 29,
+  },
+  simpleFlow: {
+    width: '100%',
+    borderWidth: 1,
+    borderColor: '#dbeafe',
+    borderRadius: 8,
+    backgroundColor: '#f8fafc',
+    gap: 4,
+    padding: 16,
+  },
+  simpleFlowStep: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  simpleFlowText: {
+    color: '#0f172a',
+    fontSize: 20,
+    fontWeight: '900',
+  },
+  simpleFlowArrow: {
+    color: '#2563eb',
+    fontSize: 18,
+    fontWeight: '900',
   },
   simpleActions: {
     width: '100%',
@@ -903,6 +972,39 @@ const styles = StyleSheet.create({
   },
   dashboardActions: {
     gap: 10,
+  },
+  upgradeBanner: {
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+    borderRadius: 8,
+    backgroundColor: '#eff6ff',
+    gap: 12,
+    padding: 14,
+  },
+  upgradeTitle: {
+    color: '#0f172a',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  upgradeText: {
+    color: '#1e40af',
+    fontSize: 13,
+    fontWeight: '800',
+    lineHeight: 19,
+    marginTop: 3,
+  },
+  upgradeButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 50,
+    borderRadius: 8,
+    backgroundColor: '#2563eb',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  upgradeButtonText: {
+    fontSize: 15,
+    fontWeight: '900',
   },
   dashboardPrimaryLink: {
     overflow: 'hidden',

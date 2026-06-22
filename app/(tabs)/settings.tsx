@@ -48,7 +48,7 @@ const pricingComparisonRows = [
   { feature: '請求', free: '3件', pro: '無制限', business: '無制限' },
   { feature: '未入金管理', free: '-', pro: '対応', business: '対応' },
   { feature: 'CSV出力', free: '-', pro: '対応', business: '対応' },
-  { feature: '高度な分析', free: '-', pro: '-', business: '対応' },
+  { feature: 'チーム機能', free: '-', pro: '-', business: '準備中' },
 ];
 
 function getPlanLabel(plan?: string) {
